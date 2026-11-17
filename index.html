@@ -805,6 +805,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
 <button id="undo-fab" onclick="doUndo()">↩️ 되돌리기</button>
 <!-- ── Sound toggle ── -->
 
+<div id="auth-startup" role="status" aria-live="polite" style="position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text2);font-size:14px;">로그인 상태 확인 중…</div>
 <div class="login-wrap" id="login-screen">
   <div class="login-box">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px;">
@@ -2871,6 +2872,8 @@ function showGoogleAccountPending(type,email,message){
     '<button class="btn" style="width:100%;padding:10px;" onclick="logout()">로그아웃</button>';
 }
 
+function finishAuthStartup(){document.getElementById('auth-startup')?.remove();}
+
 async function restoreAppSession(){
   try{
     const client=getSupabaseClient();
@@ -2888,6 +2891,7 @@ async function restoreAppSession(){
         if(setupError){
           await client.auth.signOut();
           showToast(setupError.message.includes('class code')?'수업 코드를 찾을 수 없습니다. 선생님에게 코드를 다시 확인하세요.':'계정 설정 중 오류가 발생했습니다. 다시 시도하세요.');
+          finishAuthStartup();
           return;
         }
         profile={...profile,account_type:setupData.account_type,onboarding_completed:true};
@@ -2909,6 +2913,7 @@ async function restoreAppSession(){
       }else{
         showGoogleAccountPending(profile.account_type,authUser.email,'계정과 수업 연결은 준비됐습니다. 선생님·학생의 단어장과 진도를 서버와 연결하는 다음 개발 단계가 끝나면 이 계정으로 학습할 수 있습니다.');
       }
+      finishAuthStartup();
       return;
     }
   }catch(error){
@@ -2919,6 +2924,7 @@ async function restoreAppSession(){
   try{saved=JSON.parse(localStorage.getItem('vm_appSession')||'null');}catch(e){}
   if(saved?.type==='guest') startPersonalMode();
   else if(saved?.type==='demo'&&saved.userId) doLogin(saved);
+  finishAuthStartup();
 }
 window.addEventListener('load',restoreAppSession);
 
