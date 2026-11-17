@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://aspvhhflthtjrllbvjtv.supabase.co; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://aspvhhflthtjrllbvjtv.supabase.co https://oauth2.googleapis.com; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="manifest" href="manifest.json">
 <title>FlipBee v0.1</title>
 <!-- Confetti library (lightweight, MIT license) -->
@@ -1721,7 +1721,7 @@ async function startGoogleAuth(flow){
     const client=getSupabaseClient();
     if(flow==='signup')sessionStorage.setItem('vm_pendingGoogleSignup',JSON.stringify({type,classCode}));
     else sessionStorage.removeItem('vm_pendingGoogleSignup');
-    const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href.split('#')[0]}});
+    const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href.split('#')[0],queryParams:{prompt:'select_account'}}});
     if(error)throw error;
   }catch(error){
     console.error('[Google Auth]',error);
@@ -1729,14 +1729,14 @@ async function startGoogleAuth(flow){
   }
 }
 
-function startPersonalMode(){
+function startPersonalMode(authProvider='guest'){
   let profile;
   try{ profile=JSON.parse(localStorage.getItem('vm_personalProfile')||'null'); }catch(e){}
   if(!profile||!profile.userId){
     profile={userId:'personal_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),name:'개인 학습자'};
     try{localStorage.setItem('vm_personalProfile',JSON.stringify(profile));}catch(e){}
   }
-  currentUser={role:'student',accountType:'personal',name:profile.name||'개인 학습자',userId:profile.userId};
+  currentUser={role:'student',accountType:'personal',authProvider,name:profile.name||'개인 학습자',userId:profile.userId};
   try{localStorage.setItem('vm_appSession',JSON.stringify({type:'guest',userId:currentUser.userId}));}catch(e){}
   appState='idle'; currentWordbook=null;
   fcState={setId:null,idx:0,words:[],flipped:false,log:[]};
@@ -2843,17 +2843,26 @@ document.getElementById('student-nav').style.display  = role==='student' ? 'bloc
   go(role === 'teacher' ? 'teacher-dashboard' : 'dashboard');
 }
 
-async function logout(){
+async function logout(source=null){
+  const authSource=source||currentUser?.authProvider||'demo';
   let hadSupabaseSession=false;
-  try{
-    const client=getSupabaseClient();
-    const {data}=await client.auth.getSession();
-    if(data?.session){
-      const {error}=await client.auth.signOut();
-      if(error)throw error;
-      hadSupabaseSession=true;
-    }
-  }catch(error){console.warn('[Google sign out]',error);}
+  if(authSource==='google'){
+    try{
+      const client=getSupabaseClient();
+      const {data}=await client.auth.getSession();
+      if(data?.session){
+        if(data.session.provider_token){
+          try{
+            const revoke=await fetch('https://oauth2.googleapis.com/revoke',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token:data.session.provider_token})});
+            if(!revoke.ok)console.warn('[Google grant revoke] Request was rejected.');
+          }catch(error){console.warn('[Google grant revoke]',error);}
+        }
+        const {error}=await client.auth.signOut({scope:'local'});
+        if(error)throw error;
+        hadSupabaseSession=true;
+      }
+    }catch(error){console.warn('[Google sign out]',error);}
+  }
   try{localStorage.removeItem('vm_appSession');}catch(e){}
   currentUser     = null;
   currentWordbook = null;
@@ -2869,7 +2878,7 @@ function showGoogleAccountPending(type,email,message){
   form.innerHTML='<p style="font-size:14px;font-weight:700;text-align:center;">Google 로그인 완료</p>'+
     '<p style="font-size:12px;color:var(--text2);text-align:center;margin:10px 0;">'+roleLabel+' · '+String(email||'').replace(/[&<>"']/g,'')+'</p>'+
     '<p style="font-size:12px;color:var(--text2);line-height:1.6;text-align:center;margin-bottom:14px;">'+message+'</p>'+
-    '<button class="btn" style="width:100%;padding:10px;" onclick="logout()">로그아웃</button>';
+    '<button class="btn" style="width:100%;padding:10px;" onclick="logout(\'google\')">Google 계정 로그아웃</button>';
 }
 
 function finishAuthStartup(){document.getElementById('auth-startup')?.remove();}
@@ -2909,7 +2918,7 @@ async function restoreAppSession(){
       try{localStorage.removeItem('vm_appSession');}catch(e){}
       if(profile.account_type==='personal'){
         try{localStorage.setItem('vm_personalProfile',JSON.stringify({userId:authUser.id,name:profile.display_name||fullName}));}catch(e){}
-        startPersonalMode();
+        startPersonalMode('google');
       }else{
         showGoogleAccountPending(profile.account_type,authUser.email,'계정과 수업 연결은 준비됐습니다. 선생님·학생의 단어장과 진도를 서버와 연결하는 다음 개발 단계가 끝나면 이 계정으로 학습할 수 있습니다.');
       }
