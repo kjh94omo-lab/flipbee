@@ -9,11 +9,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://aspvhhflthtjrllbvjtv.supabase.co; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="manifest" href="manifest.json">
 <title>FlipBee v0.1</title>
 <!-- Confetti library (lightweight, MIT license) -->
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -126,6 +127,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge-student{background:var(--cm-l);color:var(--cm-d);}
 .acct-name{font-size:13px;font-weight:600;}
 .acct-sub{font-size:11px;color:var(--text2);}
+.teacher-home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;}
+.teacher-home-card{display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;}
+.teacher-home-card .card{height:100%;transition:transform .15s,border-color .15s,box-shadow .15s;}
+.teacher-home-card:hover .card{transform:translateY(-2px);border-color:var(--cm);box-shadow:0 6px 18px rgba(0,0,0,.08);}
+.teacher-home-card:focus-visible{outline:3px solid var(--cm);outline-offset:3px;border-radius:var(--rl);}
 
 /* ─ COMMON ─ */
 .section{display:none;}.section.active{display:block;}
@@ -806,11 +812,44 @@ body.dnd-active .main{overflow-y:hidden!important;}
       <div><div style="font-size:17px;font-weight:700;">FlipBee</div><div style="font-size:11px;color:var(--text2);">학습 카드 앱</div></div>
     </div>
     <div id="login-form">
-      <input class="input-f" id="login-id" placeholder="아이디 (학생은 이름으로 로그인)" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
-      <input class="input-f" id="login-password" type="password" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-      <button class="btn btn-primary" style="width:100%;padding:11px;" onclick="doLogin()">로그인</button>
-      <p style="font-size:12px;color:var(--text2);text-align:center;margin-top:12px;">데모 계정 — 선생님: 강쌤 / 1234 · 학생: 김민지 / 1234</p>
+      <p style="font-size:13px;color:var(--text2);text-align:center;margin:0 0 14px;">Google 계정으로 가입하거나 로그인하세요.</p>
+      <button class="btn btn-primary" style="width:100%;padding:11px;" onclick="startGoogleAuth('signin')">Google로 로그인</button>
+      <button class="btn" style="width:100%;padding:11px;margin-top:8px;" onclick="showSignupOptions()">회원가입</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--text3);font-size:11px;"><span style="height:1px;background:var(--border);flex:1;"></span>또는<span style="height:1px;background:var(--border);flex:1;"></span></div>
+      <button class="btn" style="width:100%;padding:11px;" onclick="startPersonalMode()">게스트로 로그인 · 이 기기에 저장</button>
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer;text-align:center;font-size:11px;color:var(--text2);">데모 계정으로 로그인</summary>
+        <div style="padding-top:10px;">
+          <input class="input-f" id="login-id" value="김민지" placeholder="아이디" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+          <input class="input-f" id="login-password" type="password" value="1234" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <button class="btn" style="width:100%;padding:10px;" onclick="doLogin()">데모 계정 로그인</button>
+          <p style="font-size:11px;color:var(--text2);text-align:center;margin:8px 0 0;">선생님: 강쌤 / 1234 · 학생: 김민지 / 1234</p>
+        </div>
+      </details>
+      <p style="font-size:11px;color:var(--text2);text-align:center;margin-top:14px;"><button class="btn" style="border:0;padding:2px 4px;font-size:11px;" onclick="showPrivacyNotice()">개인정보 안내</button></p>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-signup-options">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-close-x" onclick="closeModal('modal-signup-options')" title="닫기">✕</button>
+    <div class="modal-title">FlipBee 회원가입</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Google 계정으로 가입합니다. 어떤 방식으로 사용할지 선택하세요.</p>
+    <div class="fg"><label>사용 유형</label><select id="signup-account-type" onchange="document.getElementById('signup-class-code-wrap').style.display=this.value==='student'?'block':'none'"><option value="personal">개인 학습자</option><option value="teacher">선생님</option><option value="student">학생 (수업 코드 필요)</option></select></div>
+    <div class="fg" id="signup-class-code-wrap" style="display:none;"><label>수업 코드</label><input id="signup-class-code" type="text" maxlength="20" placeholder="선생님에게 받은 수업 코드"></div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.5;margin:10px 0 14px;">개인 학습 데이터는 이 기기에 저장됩니다. 선생님·학생 간 온라인 진도 공유는 서버 연결 후 제공됩니다.</div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('modal-signup-options')">취소</button><button class="btn btn-primary" onclick="startGoogleAuth('signup')">Google 계정으로 가입</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="modal-privacy-notice">
+  <div class="modal" style="max-width:560px;max-height:82vh;overflow:auto;">
+    <button class="modal-close-x" onclick="closeModal('modal-privacy-notice')" title="닫기">✕</button>
+    <div class="modal-title">개인정보 처리 안내 · 개발 중</div>
+    <p style="font-size:13px;line-height:1.7;color:var(--text2);">게스트와 개인 학습 모드는 단어장과 진도를 현재 브라우저 저장소에 보관합니다. Google 인증은 테스트 설정 단계이며, 선생님·학생의 서버 학습 데이터 동기화는 아직 개발 중입니다. 실제 서비스 전 운영자 정보, 보유 기간, 삭제 요청 방법, 외부 인증·서버 업체와 국외 이전 여부를 확정해 개인정보 처리방침을 공개할 예정입니다.</p>
+    <p style="font-size:12px;line-height:1.6;color:var(--text2);">현재는 개발·테스트용 안내이며 최종 개인정보 처리방침이나 이용약관이 아닙니다. 최종 약관과 운영 정보를 확정하기 전에는 일반 공개 가입을 시작하지 않습니다.</p>
+    <div class="modal-footer"><button class="btn btn-primary" onclick="closeModal('modal-privacy-notice')">확인</button></div>
   </div>
 </div>
 
@@ -823,16 +862,13 @@ body.dnd-active .main{overflow-y:hidden!important;}
   </div>
   <div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
   <div class="sidebar">
-    <div class="logo" onclick="closeMobileMenu()" style="cursor:pointer;">
+    <div class="logo" onclick="go(currentUser?.role==='teacher'?'teacher-dashboard':'dashboard')" style="cursor:pointer;">
       <div class="logo-icon" style="font-size:14px;line-height:1;">🐝</div>
       <div class="logo-title">FlipBee</div>
     </div>
 
 <div id="student-nav">
     <div class="nav-sec">학습</div>
-    <button class="nav-btn" onclick="go('dashboard')">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>오늘의 현황
-    </button>
     <button class="nav-btn" onclick="go('flashcard')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 9v6M9 12h6"/></svg>플래시카드
     </button>
@@ -842,9 +878,11 @@ body.dnd-active .main{overflow-y:hidden!important;}
     <button class="nav-btn" onclick="go('progress')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>학습 진도
     </button>
+    <div class="nav-sec">개인 관리</div>
     <button class="nav-btn" onclick="_planBackTo=null;go('planner')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="15" x2="10" y2="17"/><line x1="10" y1="17" x2="14" y2="13"/></svg>내 플래너
     </button>
+    <div class="nav-sec">설정</div>
       <button class="nav-btn" onclick="go('notif')" id="notif-nav">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>복습 알림
     </button>
@@ -854,30 +892,31 @@ body.dnd-active .main{overflow-y:hidden!important;}
     </div>
 
     <div id="teacher-nav">
-      <div class="nav-sec">관리</div>
+      <div class="nav-sec">핵심 업무</div>
+      <button class="nav-btn" onclick="go('wordsets')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>단어장 관리
+      </button>
+      <button class="nav-btn" onclick="go('students')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>반·학생 관리
+      </button>
+      <button class="nav-btn" onclick="go('homework')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>숙제 관리
+      </button>
+      <div class="nav-sec">수업 운영</div>
       <button class="nav-btn" onclick="go('calendar')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>반별 일정
       </button>
       <button class="nav-btn" onclick="go('attendance')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>출석부
       </button>
-      <button class="nav-btn" onclick="go('homework')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>숙제 관리
-      </button>
-      <button class="nav-btn" onclick="go('wordsets')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>단어장 관리
-      </button>
-      <button class="nav-btn" onclick="go('students')">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>학생 관리
-      </button>
       <button class="nav-btn" onclick="go('statistics')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 17V9M12 17v-5M16 17v-8"/></svg>진도 대시보드
       </button>
+      <div class="nav-sec">설정</div>
+      <button class="nav-btn settings-nav" onclick="go('settings')" id="settings-nav-tea" style="display:none;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>설정
+      </button>
     </div>
-
-    <button class="nav-btn settings-nav" onclick="go('settings')" id="settings-nav-tea" style="display:none;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>설정
-    </button>
 
     
     
@@ -892,6 +931,28 @@ body.dnd-active .main{overflow-y:hidden!important;}
 
   <div class="main">
 
+    <!-- ── TEACHER DASHBOARD ── -->
+    <div class="section" id="sec-teacher-dashboard">
+      <div class="sec-title">핵심 업무</div>
+      <div class="teacher-home-grid" style="margin-bottom:18px;">
+        <button type="button" class="teacher-home-card" onclick="go('wordsets')" aria-label="단어장 관리: 단어장을 만들고 반에 배정합니다.">
+          <div class="card"><div style="font-size:24px;margin-bottom:8px;">📚</div><h3 style="font-size:15px;margin-bottom:6px;">단어장 관리</h3><p style="font-size:12px;color:var(--text2);margin:0;">단어장을 만들고 반에 배정합니다.</p></div>
+        </button>
+        <button type="button" class="teacher-home-card" onclick="go('students')" aria-label="반·학생 관리: 반과 학생 계정을 관리합니다.">
+          <div class="card"><div style="font-size:24px;margin-bottom:8px;">👥</div><h3 style="font-size:15px;margin-bottom:6px;">반·학생 관리</h3><p style="font-size:12px;color:var(--text2);margin:0;">반과 학생 계정을 관리합니다.</p></div>
+        </button>
+        <button type="button" class="teacher-home-card" onclick="go('homework')" aria-label="숙제 관리: 반별 숙제를 내고 제출 현황을 확인합니다.">
+          <div class="card"><div style="font-size:24px;margin-bottom:8px;">📝</div><h3 style="font-size:15px;margin-bottom:6px;">숙제 관리</h3><p style="font-size:12px;color:var(--text2);margin:0;">반별 숙제를 내고 제출 현황을 확인합니다.</p></div>
+        </button>
+      </div>
+      <div class="sec-title" style="font-size:16px;margin:20px 0 10px;">수업 운영</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button class="btn btn-sm" onclick="go('calendar')">반별 일정</button>
+        <button class="btn btn-sm" onclick="go('attendance')">출석부</button>
+        <button class="btn btn-sm" onclick="go('statistics')">진도 대시보드</button>
+      </div>
+    </div>
+
     <!-- ── FLASHCARD ── -->
     <div class="section active" id="sec-flashcard">
 
@@ -902,10 +963,10 @@ body.dnd-active .main{overflow-y:hidden!important;}
           <div style="text-align:center;margin-bottom:24px;">
             <div style="font-size:44px;margin-bottom:8px;line-height:1;">🎴</div>
             <div style="font-size:18px;font-weight:700;">플래시카드</div>
-            <div style="font-size:13px;color:var(--text2);margin-top:6px;">단어장을 선택하고 학습을 시작하세요</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:6px;">단어장 또는 DAY 시리즈를 선택하고 학습을 시작하세요</div>
           </div>
           <div class="fg" style="margin-bottom:16px;">
-            <label>단어장 선택</label>
+            <label>단어장 / 시리즈 선택</label>
             <select id="fc-sel-idle" style="width:100%;padding:10px 12px;border:.5px solid var(--border2);border-radius:var(--r);font-size:14px;background:var(--bg);color:var(--text);font-family:inherit;"
               onchange="onFCWordbookChange()">
               <option value="">-- 단어장을 선택하세요 --</option>
@@ -917,12 +978,13 @@ body.dnd-active .main{overflow-y:hidden!important;}
             <button class="btn" id="fc-shuffle-btn" onclick="startFlashcardShuffled()" disabled
               style="padding:11px;font-size:13px;">셔플하여 시작</button>
             <button class="btn" id="fc-add-wordset-btn" onclick="openAddWordsetModal()" style="padding:11px;font-size:13px;display:none;">📚 단어장 추가</button>
+            <button class="btn" id="personal-wordsets-btn" onclick="openPersonalWordsets()" style="padding:11px;font-size:13px;display:none;">📚 내 단어장 관리</button>
           </div>
         </div>
         <!-- 선택된 단어장 진도 미리보기 -->
         <div id="fc-idle-prog" style="max-width:480px;margin:20px auto 0;display:none;">
           <div class="card">
-            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px;">이 단어장의 내 진도</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px;">선택한 단어장 / 시리즈 진도</div>
             <div class="grid-3">
               <div class="stat-card"><div class="stat-num" style="color:var(--cm)" id="fc-prog-completed">0</div><div class="stat-lbl">암기 완료</div></div>
               <div class="stat-card"><div class="stat-num" style="color:var(--cd)" id="fc-prog-review">0</div><div class="stat-lbl">복습 필요</div></div>
@@ -984,12 +1046,19 @@ body.dnd-active .main{overflow-y:hidden!important;}
       <div id="qz-setup">
         <div class="sec-title">퀴즈</div>
         <div class="card" style="margin-bottom:12px;">
-          <div class="fg"><label>단어장</label>
+          <div class="fg"><label>단어장 / 시리즈</label>
             <select id="qz-sel" style="width:100%;padding:8px 12px;border:.5px solid var(--border2);border-radius:var(--r);font-size:14px;background:var(--card);color:var(--text);font-family:inherit;"></select>
           </div>
           <div class="fg" style="margin-bottom:0;"><label>퀴즈 방식</label>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-              <div class="choice-btn" data-g="qtype" data-v="meaning" onclick="selOpt(this)" style="cursor:pointer;font-size:13px;padding:10px 14px;border-color:var(--cm);background:var(--cm-l);font-weight:600;">뜻 고르기</div>
+              <div class="choice-btn" data-g="qtype" data-v="choose" onclick="selOpt(this)" style="cursor:pointer;font-size:13px;padding:10px 14px;border-color:var(--cm);background:var(--cm-l);font-weight:600;">고르기</div>
+              <div class="choice-btn" data-g="qtype" data-v="write" onclick="selOpt(this)" style="cursor:pointer;font-size:13px;padding:10px 14px;">적기</div>
+            </div>
+          </div>
+          <div id="qz-write-direction" class="fg" style="display:none;margin-bottom:0;"><label>적을 내용</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div class="choice-btn" data-g="qdir" data-v="word" onclick="selOpt(this)" style="cursor:pointer;font-size:13px;padding:10px 14px;">단어 적기</div>
+              <div class="choice-btn" data-g="qdir" data-v="meaning" onclick="selOpt(this)" style="cursor:pointer;font-size:13px;padding:10px 14px;">뜻 적기</div>
             </div>
           </div>
         </div>
@@ -1027,7 +1096,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
       <div class="grid-3" style="margin-bottom:20px;" id="prog-stats"></div>
       <select id="prog-sel" onchange="renderProg()" style="padding:8px 12px;border:.5px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--card);color:var(--text);font-family:inherit;margin-bottom:12px;"></select>
       <div class="card" style="padding:0;overflow:hidden;">
-        <table class="data-tbl"><thead><tr><th>단어</th><th>뜻</th><th>상태</th><th>정답률</th></tr></thead><tbody id="prog-body"></tbody></table>
+        <table class="data-tbl"><thead><tr id="prog-head"><th>단어</th><th>뜻</th><th>상태</th><th>정답률</th></tr></thead><tbody id="prog-body"></tbody></table>
       </div>
     </div>
 
@@ -1066,8 +1135,18 @@ body.dnd-active .main{overflow-y:hidden!important;}
           <select id="wm-subject-filter" style="padding:7px 10px;border:.5px solid var(--border2);border-radius:var(--r);font-size:12px;background:var(--card);color:var(--text);font-family:inherit;" onchange="renderWsManageList()">
             <option value="">전체 과목</option>
           </select>
+          <button id="bulk-toggle-btn" class="btn btn-sm" onclick="toggleBulkMode()">☑️ 일괄선택</button>
           <button class="btn btn-sm" onclick="openWmCSVUpload()">CSV</button>
           <button class="btn btn-sm btn-primary" onclick="_wsFromManageModal=true;openNewSet()">+ 새 단어장</button>
+        </div>
+        <div id="bulk-bar" class="bulk-bar">
+          <span id="bulk-count" class="bulk-bar-count">0개 선택</span>
+          <button class="btn btn-sm" onclick="bulkSelectVisibleWordsets()">표시된 항목 전체 선택</button>
+          <button class="btn btn-sm" onclick="bulkAssignToClass()">반에 배정</button>
+          <button class="btn btn-sm" onclick="bulkRemoveFromClass()">반에서 해제</button>
+          <button class="btn btn-sm" onclick="bulkAddToShared()">공유에 추가</button>
+          <button class="btn btn-sm" onclick="bulkExportCSV()">CSV 내보내기</button>
+          <button class="btn btn-sm btn-danger" onclick="bulkDelete()">삭제</button>
         </div>
         <!-- CSV 업로드/내보내기 토글 -->
         <div id="wm-csv-area" style="display:none;margin-bottom:12px;">
@@ -1081,7 +1160,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
             </div>
             <!-- 업로드 영역 -->
             <div id="wm-csv-up-body">
-              <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">열 순서: <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px;">word, meaning, example(선택)</code></p>
+              <p style="font-size:11px;color:var(--text2);margin-bottom:8px;">열 이름: <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px;">day(선택), word, meaning, example(선택)</code> · DAY 열이 있으면 DAY별 단어장으로 나눕니다.</p>
               <div style="display:flex;gap:8px;margin-bottom:8px;">
                 <div class="fg" style="flex:1;margin:0;"><input type="text" id="wm-csv-name" placeholder="단어장 이름" maxlength="20" style="padding:6px 10px;font-size:12px;"></div>
                 <div class="fg" style="width:120px;margin:0;"><select id="wm-csv-subject" style="padding:6px 10px;font-size:12px;"><option>중학 영어</option><option>고등 영어</option><option>대입 수능</option><option>사회</option><option>역사</option><option>과학</option><option>기타</option></select></div>
@@ -1096,7 +1175,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
                   <button class="btn btn-sm btn-primary" onclick="importWmCSV()">단어장으로 가져오기</button>
                 </div>
                 <div class="wm-csv-preview">
-                  <table class="csv-tbl"><thead><tr><th>#</th><th>단어</th><th>뜻</th></tr></thead><tbody id="wm-csv-tbody"></tbody></table>
+                  <table class="csv-tbl"><thead><tr><th>#</th><th>DAY</th><th>단어</th><th>뜻</th></tr></thead><tbody id="wm-csv-tbody"></tbody></table>
                 </div>
               </div>
               <button class="btn btn-sm" style="margin-top:6px;" onclick="downloadSample()">샘플 CSV 다운로드</button>
@@ -1119,11 +1198,11 @@ body.dnd-active .main{overflow-y:hidden!important;}
 
     <!-- ── STUDENTS ── -->
     <div class="section" id="sec-students">
-      <div class="sec-title">학생 관리</div>
+      <div class="sec-title">반·학생 관리</div>
       <div class="card" style="background:var(--cm-l);border-color:var(--cm);margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:12px;">
           <div>
-            <div style="font-size:12px;font-weight:600;color:var(--cm-d);">수업 초대 코드</div>
+            <div style="font-size:12px;font-weight:600;color:var(--cm-d);">수업 코드</div>
             <div style="font-size:28px;font-weight:700;color:var(--cm-d);letter-spacing:.1em;" id="code-display">CLASS01</div>
           </div>
           <div style="margin-left:auto;display:flex;flex-direction:column;gap:6px;">
@@ -1131,7 +1210,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
             <button class="btn btn-sm" onclick="openClassManageModal()">반 수정</button>
           </div>
         </div>
-        <p style="font-size:12px;color:var(--cm-d);margin-top:6px;">학생이 이 코드로 로그인하면 자동 등록됩니다.</p>
+        <p style="font-size:12px;color:var(--cm-d);margin-top:6px;">반 관리용 코드입니다. 학생은 등록된 이름과 비밀번호로 로그인합니다.</p>
       </div>
       <div style="margin-bottom:12px;">
         <div class="class-tabs" id="class-tabs"></div>
@@ -1548,7 +1627,7 @@ body.dnd-active .main{overflow-y:hidden!important;}
 <div class="overlay" id="modal-add-wordset">
   <div class="modal" style="width:480px;">
     <div class="modal-title">📚 단어장 추가</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">선생님이 공유한 단어장 중에서 선택하여 내 목록에 추가하세요.</p>
+    <p id="add-wordset-help" style="font-size:12px;color:var(--text2);margin-bottom:12px;">선생님이 공유한 단어장 중에서 선택하여 내 목록에 추가하세요.</p>
     <div id="shared-wordset-list" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('modal-add-wordset')">닫기</button>
@@ -1581,6 +1660,22 @@ body.dnd-active .main{overflow-y:hidden!important;}
   </div>
 </div>
 
+<!-- 개인 모드 전용 단어장 관리 -->
+<div class="overlay" id="modal-personal-wordsets">
+  <div class="modal" style="width:640px;max-width:95vw;">
+    <button class="modal-close-x" onclick="closeModal('modal-personal-wordsets')" title="닫기">✕</button>
+    <div class="modal-title">내 단어장</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">이 단어장과 진도는 현재 기기에 저장됩니다. CSV로 단어장을 옮길 수 있습니다.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+      <button class="btn btn-primary" onclick="openPersonalNewSet()">+ 단어장 만들기</button>
+      <label class="btn" for="personal-csv-file" style="cursor:pointer;">CSV 가져오기</label>
+      <input id="personal-csv-file" type="file" accept=".csv,.txt" style="display:none" onchange="importPersonalCSV(this)">
+    </div>
+    <div id="personal-wordset-list"></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('modal-personal-wordsets')">닫기</button></div>
+  </div>
+</div>
+
 <!-- ── 알림 배너 ── -->
 <div class="notif-banner" id="notif-banner">
   <h4 id="banner-title">FlipBee 알림</h4>
@@ -1601,6 +1696,74 @@ function hashPw(pw){
   let h=0;
   for(let i=0;i<pw.length;i++){h=((h<<5)-h)+pw.charCodeAt(i);h|=0;}
   return h.toString(36);
+}
+
+const SUPABASE_URL = 'https://aspvhhflthtjrllbvjtv.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_q85RIfgZbUmBvYqH5RywEw_0RQGrjbY';
+let _supabaseClient = null;
+function getSupabaseClient(){
+  if(_supabaseClient)return _supabaseClient;
+  if(!window.supabase?.createClient)throw new Error('Supabase 라이브러리를 불러오지 못했습니다.');
+  _supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+  return _supabaseClient;
+}
+
+function showSignupOptions(){document.getElementById('modal-signup-options').classList.add('open');}
+function showPrivacyNotice(){document.getElementById('modal-privacy-notice').classList.add('open');}
+async function startGoogleAuth(flow){
+  const type=document.getElementById('signup-account-type')?.value||'personal';
+  const classCode=document.getElementById('signup-class-code')?.value.trim()||'';
+  if(flow==='signup' && type==='student' && !classCode){
+    showToast('학생 가입에는 선생님에게 받은 수업 코드가 필요합니다.');return;
+  }
+  try{
+    const client=getSupabaseClient();
+    if(flow==='signup')sessionStorage.setItem('vm_pendingGoogleSignup',JSON.stringify({type,classCode}));
+    else sessionStorage.removeItem('vm_pendingGoogleSignup');
+    const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.href.split('#')[0]}});
+    if(error)throw error;
+  }catch(error){
+    console.error('[Google Auth]',error);
+    showToast(error.message||'Google 로그인 연결에 실패했습니다. Supabase 제공자 설정을 확인하세요.');
+  }
+}
+
+function startPersonalMode(){
+  let profile;
+  try{ profile=JSON.parse(localStorage.getItem('vm_personalProfile')||'null'); }catch(e){}
+  if(!profile||!profile.userId){
+    profile={userId:'personal_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8),name:'개인 학습자'};
+    try{localStorage.setItem('vm_personalProfile',JSON.stringify(profile));}catch(e){}
+  }
+  currentUser={role:'student',accountType:'personal',name:profile.name||'개인 학습자',userId:profile.userId};
+  try{localStorage.setItem('vm_appSession',JSON.stringify({type:'guest',userId:currentUser.userId}));}catch(e){}
+  appState='idle'; currentWordbook=null;
+  fcState={setId:null,idx:0,words:[],flipped:false,log:[]};
+  qPlaying={words:[],q:0,score:0,setId:null,log:[]};
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='flex';
+  document.getElementById('role-badge').textContent='개인 모드';
+  document.getElementById('role-badge').className='role-badge badge-student';
+  document.getElementById('acct-name').textContent=currentUser.name;
+  document.getElementById('acct-sub').textContent='이 기기에 저장';
+  document.getElementById('teacher-nav').style.display='none';
+  document.getElementById('student-nav').style.display='block';
+  const sBtn=document.getElementById('settings-nav-stu'); if(sBtn)sBtn.style.display='flex';
+  const tBtn=document.getElementById('settings-nav-tea'); if(tBtn)tBtn.style.display='none';
+  const notifBtn=document.getElementById('notif-nav'); if(notifBtn)notifBtn.style.display='flex';
+  const dataCard=document.getElementById('settings-data-card'); if(dataCard)dataCard.style.display='none';
+  const addBtn=document.getElementById('fc-add-wordset-btn'); if(addBtn)addBtn.style.display='block';
+  const ownBtn=document.getElementById('personal-wordsets-btn'); if(ownBtn)ownBtn.style.display='block';
+  const savedNotif=userNotifSettings[currentUser.userId];
+  notifSettings=savedNotif?JSON.parse(JSON.stringify(savedNotif)):{daily:false,dailyTime:'18:00',sr:false,srSchedule:[]};
+  document.getElementById('daily-toggle').checked=!!notifSettings.daily;
+  document.getElementById('sr-toggle').checked=!!notifSettings.sr;
+  document.getElementById('daily-time').value=notifSettings.dailyTime||'18:00';
+  document.getElementById('daily-time-wrap').style.display=notifSettings.daily?'block':'none';
+  populateSelects(); _loadUserSFX();
+  const fcIdle=document.getElementById('fc-idle-prog'); if(fcIdle)fcIdle.style.display='none';
+  const fcSel=document.getElementById('fc-sel-idle'); if(fcSel)fcSel.value='';
+  go('dashboard');
 }
 
 // ─── 필수 전역 상태 ───
@@ -2522,7 +2685,7 @@ let notifSettings = {daily:false,dailyTime:'18:00',sr:false,srSchedule:[]};
 let userNotifSettings = {};
 // per-user persisted quiz settings
 let userQuizSettings = {};
-// per-user persisted SFX settings { [userId]: {muted:bool, volume:number} }
+// device-wide persisted SFX setting { _global: { volume:number } }
 let userSFXSettings = {};
 
 // load persisted notif + quiz + sfx settings
@@ -2530,7 +2693,7 @@ let userSFXSettings = {};
   try{ const raw = localStorage.getItem('vm_notif'); if(raw) userNotifSettings = JSON.parse(raw); }catch(e){ userNotifSettings = {}; }
   try{ const qraw = localStorage.getItem('vm_qstate'); if(qraw) userQuizSettings = JSON.parse(qraw); }catch(e){ userQuizSettings = {}; }
   try{ const sraw = localStorage.getItem('vm_sfx'); if(sraw) userSFXSettings = JSON.parse(sraw); }catch(e){ userSFXSettings = {}; }
-  // 이전 전역 vm_sfx_muted/vm_sfx_vol → 계정별로 마이그레이션
+  // 이전 vm_sfx_muted/vm_sfx_vol 값을 공통 설정으로 이어받습니다.
   try{
     const oldMuted = localStorage.getItem('vm_sfx_muted');
     const oldVol = localStorage.getItem('vm_sfx_vol');
@@ -2577,23 +2740,28 @@ const SRS_MIN_EF = 1.3;
 // ═══════════════════════════════════════════════
 // ═══ LOGIN ═══
 // ═══════════════════════════════════════════════
-function doLogin(){
-  const loginId = document.getElementById('login-id').value.trim();
+function doLogin(restoreSession=null){
+  const loginId = restoreSession?.userId || document.getElementById('login-id').value.trim();
   const password = document.getElementById('login-password').value;
-  if(!loginId || !password){showToast('아이디와 비밀번호를 입력해주세요.');return;}
+  if(!loginId || (!password&&!restoreSession)){showToast('아이디와 비밀번호를 입력해주세요.');return;}
   const key = loginId.toLocaleLowerCase();
   const matches = [];
-  students.forEach(stu=>{
+  if(restoreSession){
+    const stu=students.find(s=>String(s.userId)===String(restoreSession.userId));
+    const usr=users.find(u=>String(u.userId)===String(restoreSession.userId));
+    if(stu)matches.push({role:'student',account:stu});
+    else if(usr&&(usr.role==='teacher'||/^teacher_/i.test(String(usr.userId||''))))matches.push({role:'teacher',account:usr});
+  } else students.forEach(stu=>{
     const ids = [stu.username,stu.name,stu.userId].filter(Boolean).map(v=>String(v).trim().toLocaleLowerCase());
     if(ids.includes(key)) matches.push({role:'student',account:stu});
   });
-  users.forEach(user=>{
+  if(!restoreSession) users.forEach(user=>{
     if(user.role!=='teacher' && !/^teacher_/i.test(String(user.userId||''))) return;
     const ids = [user.username,user.name,user.userId].filter(Boolean).map(v=>String(v).trim().toLocaleLowerCase());
     if(ids.includes(key)) matches.push({role:'teacher',account:user});
   });
   if(!matches.length){showToast('아이디를 찾을 수 없습니다.');return;}
-  const matchingPassword = matches.filter(m=>m.account.pwHash===hashPw(password));
+  const matchingPassword = restoreSession ? matches : matches.filter(m=>m.account.pwHash===hashPw(password));
   if(!matchingPassword.length){showToast('아이디 또는 비밀번호가 올바르지 않습니다.');return;}
   if(matchingPassword.length>1){showToast('아이디가 중복됩니다. 선생님에게 계정 확인을 요청하세요.');return;}
   const match = matchingPassword[0];
@@ -2607,6 +2775,7 @@ function doLogin(){
   currentUser = role==='teacher'
     ? {role,name:account.name||loginId,userId:account.userId}
     : {role,name:account.name,userId:account.userId,stuId:account.id,code:account.code,classId:account.classId};
+  try{localStorage.setItem('vm_appSession',JSON.stringify({type:'demo',userId:currentUser.userId}));}catch(e){}
   saveStudents();
 
   // 상태 초기화: 반드시 idle로 시작
@@ -2661,7 +2830,7 @@ document.getElementById('student-nav').style.display  = role==='student' ? 'bloc
     document.getElementById('sr-toggle').checked    = false;
     document.getElementById('daily-time-wrap').style.display = 'none';
   }
-  // ── 계정별 효과음 설정 로드 ──
+  // ── 공통 효과음 설정 로드 ──
   _loadUserSFX();
   // 로그인 후 플래시카드 탭으로 이동 → idle 상태(단어장 선택 UI)
 
@@ -2670,16 +2839,88 @@ document.getElementById('student-nav').style.display  = role==='student' ? 'bloc
   document.getElementById('fc-sel-idle').value = '';
   // v0.2: update streak on student login
   if(role === 'student' && currentUser) updateStreak(currentUser.userId);
-go(role === 'teacher' ? 'calendar' : 'dashboard');
+  go(role === 'teacher' ? 'teacher-dashboard' : 'dashboard');
 }
 
-function logout(){
+async function logout(){
+  let hadSupabaseSession=false;
+  try{
+    const client=getSupabaseClient();
+    const {data}=await client.auth.getSession();
+    if(data?.session){
+      const {error}=await client.auth.signOut();
+      if(error)throw error;
+      hadSupabaseSession=true;
+    }
+  }catch(error){console.warn('[Google sign out]',error);}
+  try{localStorage.removeItem('vm_appSession');}catch(e){}
   currentUser     = null;
   currentWordbook = null;
   appState        = 'idle';
+  if(hadSupabaseSession){window.location.reload();return;}
   document.getElementById('app-screen').style.display  = 'none';
   document.getElementById('login-screen').style.display = 'flex';
 }
+
+function showGoogleAccountPending(type,email,message){
+  const roleLabel=type==='teacher'?'선생님':type==='student'?'학생':'개인 학습자';
+  const form=document.getElementById('login-form');
+  form.innerHTML='<p style="font-size:14px;font-weight:700;text-align:center;">Google 로그인 완료</p>'+
+    '<p style="font-size:12px;color:var(--text2);text-align:center;margin:10px 0;">'+roleLabel+' · '+String(email||'').replace(/[&<>"']/g,'')+'</p>'+
+    '<p style="font-size:12px;color:var(--text2);line-height:1.6;text-align:center;margin-bottom:14px;">'+message+'</p>'+
+    '<button class="btn" style="width:100%;padding:10px;" onclick="logout()">로그아웃</button>';
+}
+
+async function restoreAppSession(){
+  try{
+    const client=getSupabaseClient();
+    const {data:{session},error:sessionError}=await client.auth.getSession();
+    if(sessionError)throw sessionError;
+    if(session?.user){
+      const authUser=session.user;
+      let pending=null;
+      try{pending=JSON.parse(sessionStorage.getItem('vm_pendingGoogleSignup')||'null');}catch(e){}
+      let profileResult=await client.from('profiles').select('account_type,display_name,onboarding_completed').eq('id',authUser.id).single();
+      if(profileResult.error)throw profileResult.error;
+      let profile=profileResult.data;
+      if(pending&&!profile.onboarding_completed){
+        const {data:setupData,error:setupError}=await client.rpc('complete_google_signup',{requested_type:pending.type,code_text:pending.classCode||null});
+        if(setupError){
+          await client.auth.signOut();
+          showToast(setupError.message.includes('class code')?'수업 코드를 찾을 수 없습니다. 선생님에게 코드를 다시 확인하세요.':'계정 설정 중 오류가 발생했습니다. 다시 시도하세요.');
+          return;
+        }
+        profile={...profile,account_type:setupData.account_type,onboarding_completed:true};
+        sessionStorage.removeItem('vm_pendingGoogleSignup');
+      }else if(!profile.onboarding_completed){
+        const {data:setupData,error:setupError}=await client.rpc('complete_google_signup',{requested_type:profile.account_type,code_text:null});
+        if(setupError)throw setupError;
+        profile={...profile,account_type:setupData.account_type,onboarding_completed:true};
+      }
+      const fullName=authUser.user_metadata?.full_name||authUser.user_metadata?.name||authUser.email||'개인 학습자';
+      if(!profile.display_name&&fullName){
+        await client.from('profiles').update({display_name:fullName.slice(0,120)}).eq('id',authUser.id);
+        profile.display_name=fullName;
+      }
+      try{localStorage.removeItem('vm_appSession');}catch(e){}
+      if(profile.account_type==='personal'){
+        try{localStorage.setItem('vm_personalProfile',JSON.stringify({userId:authUser.id,name:profile.display_name||fullName}));}catch(e){}
+        startPersonalMode();
+      }else{
+        showGoogleAccountPending(profile.account_type,authUser.email,'계정과 수업 연결은 준비됐습니다. 선생님·학생의 단어장과 진도를 서버와 연결하는 다음 개발 단계가 끝나면 이 계정으로 학습할 수 있습니다.');
+      }
+      return;
+    }
+  }catch(error){
+    console.error('[Supabase session restore]',error);
+    showToast(error.message||'Supabase 연결을 확인하지 못했습니다.');
+  }
+  let saved=null;
+  try{saved=JSON.parse(localStorage.getItem('vm_appSession')||'null');}catch(e){}
+  if(saved?.type==='guest') startPersonalMode();
+  else if(saved?.type==='demo'&&saved.userId) doLogin(saved);
+}
+window.addEventListener('load',restoreAppSession);
 
 // ═══════════════════════════════════════════════
 // ═══ MOBILE NAV ═══
@@ -2734,12 +2975,12 @@ function go(page){
   closeMobileMenu();
 
   // ── 모바일 헤더 타이틀 업데이트 ──
-  const pageTitles = {flashcard:'플래시카드',quiz:'퀴즈',progress:'학습 진도',wordsets:'단어장 관리',students:'학생 관리',statistics:'진도 대시보드',notif:'설정',settings:'계정',dashboard:'오늘의 현황',planner:'내 플래너',attendance:'출석부',homework:'숙제 관리',calendar:'반별 일정'};
+  const pageTitles = {flashcard:'플래시카드',quiz:'퀴즈',progress:'학습 진도',wordsets:'단어장 관리',students:'반·학생 관리',statistics:'진도 대시보드',notif:'복습 알림',settings:'설정',dashboard:'오늘의 현황','teacher-dashboard':'핵심 업무',planner:'내 플래너',attendance:'출석부',homework:'숙제 관리',calendar:'반별 일정'};
   const titleEl = document.getElementById('mobile-page-title');
   if(titleEl) titleEl.textContent = pageTitles[page] || 'FlipBee';
 
   // ── 역할 접근 제어 ──
-  const teacherOnly = ['wordsets','students','statistics','attendance','homework'];
+  const teacherOnly = ['teacher-dashboard','wordsets','students','statistics','attendance','homework'];
   const studentOnly = ['flashcard','quiz','progress','dashboard','planner'];
   if(currentUser?.role === 'teacher' && studentOnly.includes(page)) return;
   if(currentUser?.role === 'student' && teacherOnly.includes(page)) return;
@@ -2768,9 +3009,6 @@ function go(page){
     document.getElementById('qz-setup').style.display = 'flex';
     document.getElementById('qz-playing-wrap').style.display = 'none';
     document.getElementById('qz-done').style.display = 'none';
-    // 학생은 퀴즈 방식 선택 숨김
-    const qTypeWrap = document.getElementById('qz-type-wrap');
-    if(qTypeWrap) qTypeWrap.style.display = currentUser?.role==='student' ? 'none' : '';
   }
   if(page==='progress')  {populateProgSel(); renderProg();}
   if(page==='wordsets')  wsTab('all');
@@ -2804,11 +3042,55 @@ async function genExBulk(pairs,subject){
 // ═══════════════════════════════════════════════
 
 /** idle 셀렉트 채우기 */
+function getWordsetSeriesKey(set){
+  if(set?.seriesUid) return String(set.seriesUid);
+  if(/^DAY\d+$/i.test(String(set?.group||'')) && Array.isArray(set?.tags) && set.tags[0])
+    return `legacy:${set.subject||''}:${set.tags[0]}`;
+  return '';
+}
+function getWordsetSeriesName(set){return set?.seriesName || (getWordsetSeriesKey(set).startsWith('legacy:') ? (set.tags||[])[0] : '');}
+function getWordsetsForSelection(selection,visible=getVisibleWordsets()){
+  const value=String(selection??'');
+  if(value.startsWith('series:')){
+    let key=''; try{key=decodeURIComponent(value.slice(7));}catch(e){return [];}
+    return visible.filter(s=>getWordsetSeriesKey(s)===key);
+  }
+  return visible.filter(s=>String(s.id)===value || s.uid===value);
+}
+function currentFCSourceSetId(){return fcState.words[fcState.idx]?._sid || fcState.setId;}
+function buildWordsetOptions(visible){
+  let html=''; const emitted=new Set();
+  visible.forEach(s=>{
+    const key=getWordsetSeriesKey(s);
+    if(!key){ html+=`<option value="${s.id}">${escHTML(s.group&&s.group.trim()?`[${s.group.trim()}] `:'' )}${escHTML(s.name)}</option>`; return; }
+    if(emitted.has(key)) return;
+    emitted.add(key);
+    const members=visible.filter(x=>getWordsetSeriesKey(x)===key);
+    const seriesName=getWordsetSeriesName(s)||s.name.replace(/\s+DAY\d+$/i,'');
+    html+=`<optgroup label="${escHTML(seriesName)}"><option value="series:${encodeURIComponent(key)}">${escHTML(seriesName)} · 전체 ${members.length} DAY</option>`;
+    members.forEach(day=>html+=`<option value="${day.id}">${escHTML(seriesName)} · ${escHTML(day.group||day.name)} · ${day.words.length}개</option>`);
+    html+='</optgroup>';
+  });
+  return html;
+}
+function groupWordsetsBySeries(sets){
+  const groups=[]; const byKey=new Map();
+  sets.forEach(set=>{
+    const key=getWordsetSeriesKey(set);
+    if(!key){groups.push({key:'',name:set.name,sets:[set]});return;}
+    if(!byKey.has(key)){
+      const group={key,name:getWordsetSeriesName(set)||set.name.replace(/\s+DAY\d+$/i,''),sets:[]};
+      byKey.set(key,group); groups.push(group);
+    }
+    byKey.get(key).sets.push(set);
+  });
+  return groups;
+}
 function populateFCSel(){
   const sel = document.getElementById('fc-sel-idle');
   const visible = getVisibleWordsets();
   sel.innerHTML = '<option value="">-- 단어장을 선택하세요 --</option>'
-    + visible.map(s=>`<option value="${s.id}">${s.group && s.group.trim()? '['+s.group.trim()+'] ':''}${s.name}</option>`).join('');
+    + buildWordsetOptions(visible);
   // 학생이고 볼 수 있는 단어장이 없으면 안내
   if(currentUser?.role === 'student' && visible.length === 0){
     sel.innerHTML = '<option value="">단어장이 없습니다 — 단어장 추가를 이용하세요</option>';
@@ -2832,7 +3114,7 @@ function populateFCSel(){
 /** idle: 단어장 선택 변경 시 */
 function onFCWordbookChange(){
   const val = document.getElementById('fc-sel-idle').value;
-  currentWordbook = val ? parseInt(val) : null;
+  currentWordbook = val || null;
   const hasSet = !!currentWordbook;
   document.getElementById('fc-start-btn').disabled   = !hasSet;
   document.getElementById('fc-shuffle-btn').disabled = !hasSet;
@@ -2840,12 +3122,18 @@ function onFCWordbookChange(){
   const progWrap = document.getElementById('fc-idle-prog');
   if(hasSet && currentUser){
     progWrap.style.display = 'block';
-    const p = getProgress(currentUser.userId, currentWordbook);
-    const ws = p.wordStatus || {};
-    const _st = v => typeof v === 'object' && v !== null ? v.status : v;
-    document.getElementById('fc-prog-completed').textContent = Object.values(ws).filter(v=>_st(v)==='known').length;
-    document.getElementById('fc-prog-review').textContent    = Object.values(ws).filter(v=>_st(v)==='review').length;
-    const rate = p.total ? Math.round(p.correct/p.total*100)+'%' : '—';
+    const selectedSets=getWordsetsForSelection(currentWordbook);
+    const stats=selectedSets.reduce((a,s)=>{
+      const p=getProgress(currentUser.userId,s.id), ws=p.wordStatus||{};
+      const st=v=>typeof v==='object'&&v?v.status:v;
+      a.completed+=Object.values(ws).filter(v=>st(v)==='known').length;
+      a.review+=Object.values(ws).filter(v=>st(v)==='review').length;
+      a.correct+=p.correct||0; a.total+=p.total||0;
+      return a;
+    },{completed:0,review:0,correct:0,total:0});
+    document.getElementById('fc-prog-completed').textContent = stats.completed;
+    document.getElementById('fc-prog-review').textContent    = stats.review;
+    const rate = stats.total ? Math.round(stats.correct/stats.total*100)+'%' : '—';
     document.getElementById('fc-prog-rate').textContent      = rate;
   } else {
     progWrap.style.display = 'none';
@@ -2877,12 +3165,17 @@ function startFlashcardShuffled(){
 }
 
 function _initFC(shuffle){
-  const set = wordsets.find(s=>s.id===currentWordbook);
-  if(!set||!set.words.length){showToast('단어가 없습니다.');return;}
-  // ensure each word has a stable uid
-  set.words.forEach(w=>{ if(!w.uid) w.uid = 'w_'+Date.now()+'_'+Math.floor(Math.random()*10000); });
+  const sets=getWordsetsForSelection(currentWordbook);
+  const totalWords=sets.reduce((n,s)=>n+(s.words||[]).length,0);
+  if(!sets.length||!totalWords){showToast('단어가 없습니다.');return;}
+  // ensure each word has a stable uid and retain its source DAY for progress
+  const words=[];
+  sets.forEach(set=>set.words.forEach((w,i)=>{
+    if(!w.uid) w.uid='w_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+    words.push({...w,_i:i,_uid:w.uid,_sid:set.id,_day:set.group||''});
+  }));
   fcState.setId  = currentWordbook;
-  fcState.words  = set.words.map((w,i)=>({...w,_i:i, _uid: w.uid}));
+  fcState.words  = words;
   fcState.idx    = 0;
   fcState.log    = []; // 이번 세션 결과 임시 저장 (updateProgress 시에만 반영)
   if(shuffle) fcState.words.sort(()=>Math.random()-.5);
@@ -2928,7 +3221,7 @@ function showFC(){
   // ── 플래그 & 메모 UI ──
   const wuid = w.uid || w._uid;
   const uid = currentUser?.userId||'guest';
-  const p = wuid ? (getProgress(uid, fcState.setId)?.wordStatus||{}) : {};
+  const p = wuid ? (getProgress(uid, w._sid||fcState.setId)?.wordStatus||{}) : {};
   const wdata = (wuid && typeof p[wuid]==='object') ? p[wuid] : {};
   const flagged = wdata.flag === true;
   const note = wdata.note || '';
@@ -2972,7 +3265,7 @@ function toggleWordFlag(){
   const w = fcState.words[fcState.idx]; if(!w) return;
   const wuid = w.uid || w._uid; if(!wuid) return;
   const uid = currentUser.userId;
-  const p = getProgress(uid, fcState.setId);
+  const p = getProgress(uid, currentFCSourceSetId());
   const prev = p.wordStatus[wuid];
   const prevData = (typeof prev==='object' && prev) ? prev : {status: (typeof prev==='string'?prev:undefined)};
   prevData.flag = !prevData.flag;
@@ -2996,7 +3289,7 @@ function saveWordNote(val){
   const w = fcState.words[fcState.idx]; if(!w) return;
   const wuid = w.uid || w._uid; if(!wuid) return;
   const uid = currentUser.userId;
-  const p = getProgress(uid, fcState.setId);
+  const p = getProgress(uid, currentFCSourceSetId());
   const prev = p.wordStatus[wuid];
   const prevData = (typeof prev==='object' && prev) ? prev : {status: (typeof prev==='string'?prev:undefined)};
   prevData.note = val;
@@ -3040,7 +3333,7 @@ function markCardSRS(grade){
   const w = fcState.words[fcState.idx];
   const wuid = w.uid || w._uid;
   const uid = currentUser?.userId || 'guest';
-  const p = getProgress(uid, fcState.setId);
+  const p = getProgress(uid, w._sid||fcState.setId);
 
   // wordStatus 오브젝트 확보
   let ws = p.wordStatus[wuid];
@@ -3079,7 +3372,7 @@ function markCardSRS(grade){
   try{ localStorage.setItem('vm_progress', JSON.stringify(progress)); }catch(e){}
 
   // log에도 기록 (결과 화면용)
-  fcState.log[fcState.idx] = {wordUid: wuid, known: grade >= 1};
+  fcState.log[fcState.idx] = {wordUid: wuid, setId:w._sid||fcState.setId, known: grade >= 1};
   const nextIdx = fcState.idx + 1;
   if(nextIdx >= fcState.words.length){
     updateProgress();
@@ -3091,7 +3384,7 @@ function markCardSRS(grade){
 }
 async function generateFCEx(){
   const w    = fcState.words[fcState.idx];
-  const set  = wordsets.find(s=>s.id===fcState.setId);
+  const set  = wordsets.find(s=>String(s.id)===String(w._sid||fcState.setId));
   const exEl = document.getElementById('fc-ex');
   exEl.textContent  = '생성 중...';
   exEl.style.color  = 'var(--cm)';
@@ -3109,7 +3402,7 @@ async function generateFCEx(){
 function markCard(known){
   const w = fcState.words[fcState.idx];
   // 임시 로그에만 기록 (진도는 완료/그만두기 시에만 반영)
-  fcState.log[fcState.idx] = {wordUid: w.uid || w._uid, known};
+  fcState.log[fcState.idx] = {wordUid: w.uid || w._uid, setId:w._sid||fcState.setId, known};
   const nextIdx = fcState.idx + 1;
   if(nextIdx >= fcState.words.length){
     // 끝까지 완료
@@ -3138,11 +3431,10 @@ function quitStudy(){
 function updateProgress(){
   if(!currentUser || !fcState.setId) return;
   const uid = currentUser.userId;
-  const wid = fcState.setId;
-  const p   = getProgress(uid, wid);
   // fcState.log 기반으로 wordStatus 갱신 — uid 키만 사용 (숫자 인덱스 저장 금지)
   fcState.log.forEach(entry=>{
     if(!entry) return;
+    const p=getProgress(uid,entry.setId||fcState.setId);
     const state = entry.known ? 'known' : 'review';
     if(entry.wordUid){
       const prev = p.wordStatus[entry.wordUid];
@@ -3206,6 +3498,7 @@ function backToFCIdle(){
   renderFC();
   // 단어장 선택 초기화
   document.getElementById('fc-sel-idle').value = '';
+  currentWordbook = null;
   document.getElementById('fc-idle-prog').style.display = 'none';
   document.getElementById('fc-start-btn').disabled = true;
   document.getElementById('fc-shuffle-btn').disabled = true;
@@ -3251,7 +3544,7 @@ function retryUnknown(){
 // ═══════════════════════════════════════════════
 function populateQzSel(){
   const visible = getVisibleWordsets();
-  document.getElementById('qz-sel').innerHTML = visible.map(s=>`<option value="${s.id}">${s.group && s.group.trim()? '['+s.group.trim()+'] ':''}${s.name}</option>`).join('');
+  document.getElementById('qz-sel').innerHTML = '<option value="">-- 단어장을 선택하세요 --</option>'+buildWordsetOptions(visible);
   if(currentUser?.role === 'student' && visible.length === 0){
     document.getElementById('qz-sel').innerHTML = '<option value="">단어장이 없습니다</option>';
   }
@@ -3263,9 +3556,12 @@ function applyQStateToUI(){
   // set select value
   const sel = document.getElementById('qz-sel');
   if(sel && qState.setId) sel.value = qState.setId;
-  // for each group (qtype, qrange, qcnt), adjust visual selection
-  const _qKeyMap = {qtype:'type', qrange:'range', qcnt:'cnt'};
-  ['qtype','qrange','qcnt'].forEach(g=>{
+  // for each group, adjust visual selection; migrate prior quiz mode values
+  if(qState.type==='meaning') qState.type='choose';
+  if(qState.type==='typing') qState.type='write';
+  qState.writeDirection = qState.writeDirection || 'word';
+  const _qKeyMap = {qtype:'type', qrange:'range', qcnt:'cnt', qdir:'writeDirection'};
+  ['qtype','qrange','qcnt','qdir'].forEach(g=>{
     document.querySelectorAll(`[data-g="${g}"]`).forEach(e=>{
       e.style.borderColor=''; e.style.background=''; e.style.fontWeight=''; e.style.color='';
     });
@@ -3277,6 +3573,8 @@ function applyQStateToUI(){
       if(isDark()) el.style.color = '#fff';
     }
   });
+  const directionWrap = document.getElementById('qz-write-direction');
+  if(directionWrap) directionWrap.style.display = qState.type==='write' ? '' : 'none';
 }
 
 function selOpt(el){
@@ -3289,13 +3587,18 @@ function selOpt(el){
   el.style.fontWeight  = '600';
   if(isDark()) el.style.color = '#fff';
   if(g==='qtype')  qState.type  = el.dataset.v;
+  else if(g==='qdir') qState.writeDirection = el.dataset.v;
   else if(g==='qrange') qState.range = el.dataset.v;
   else if(g==='qcnt')   qState.cnt   = el.dataset.v;
+  if(g==='qtype'){
+    const directionWrap = document.getElementById('qz-write-direction');
+    if(directionWrap) directionWrap.style.display = qState.type==='write' ? '' : 'none';
+  }
   // persist per-user quiz selection
   if(currentUser?.role === 'student'){
     // also store current set selection if available
     const sel = document.getElementById('qz-sel');
-    qState.setId = sel ? parseInt(sel.value) : qState.setId;
+    qState.setId = sel ? sel.value : qState.setId;
     userQuizSettings[currentUser.userId] = qState;
     try{ localStorage.setItem('vm_qstate', JSON.stringify(userQuizSettings)); }catch(e){}
   }
@@ -3305,15 +3608,15 @@ function isDark(){return window.matchMedia&&window.matchMedia('(prefers-color-sc
 
 function startQuiz(){
   if(currentUser?.role === 'teacher'){showToast('학생 계정으로 이용해주세요.');return;} // ── 추가
-  const setId = parseInt(document.getElementById('qz-sel').value);
-  const set   = wordsets.find(s=>s.id===setId);
-  if(!set||!set.words.length){showToast('단어가 없습니다.');return;}
-  let pool = set.words.map((w,i)=>({...w,_i:i}));
+  const selection = document.getElementById('qz-sel').value;
+  const sets = getWordsetsForSelection(selection);
+  if(!sets.length||!sets.some(s=>s.words?.length)){showToast('단어가 없습니다.');return;}
+  const allPool = sets.flatMap(s=>s.words.map((w,i)=>({...w,_i:i,_sid:s.id,_day:s.group||''})));
+  let pool = allPool.slice();
   if(qState.range==='wrong'){
     const uid = currentUser?.userId||'guest';
-    const p   = getProgress(uid, setId);
-    // wordStatus 기반으로 'review' 상태 단어만 필터
     pool = pool.filter(w=>{
+      const p=getProgress(uid,w._sid);
       const wuid = w.uid || w._uid;
       const raw = wuid ? (p.wordStatus||{})[wuid] : (p.wordStatus||{})[w._i];
       const st = (typeof raw === 'object' && raw) ? raw.status : raw;
@@ -3323,10 +3626,10 @@ function startQuiz(){
   if(!pool.length){showToast('해당 조건의 단어가 없습니다.');return;}
   pool.sort(()=>Math.random()-.5);
   const cnt = qState.cnt==='all' ? pool.length : Math.min(parseInt(qState.cnt),pool.length);
-  qPlaying = {words:pool.slice(0,cnt), q:0, score:0, setId, log:[]};
+  qPlaying = {words:pool.slice(0,cnt), allWords:allPool, q:0, score:0, setId:selection, setIds:sets.map(s=>s.id), log:[]};
   // persist chosen set as last-used for this student
   if(currentUser?.role === 'student'){
-    qState.setId = setId;
+    qState.setId = selection;
     userQuizSettings[currentUser.userId] = qState;
     try{ localStorage.setItem('vm_qstate', JSON.stringify(userQuizSettings)); }catch(e){}
   }
@@ -3343,20 +3646,68 @@ function renderQQ(){
     showQResult();
     return;
   }
-  const set    = wordsets.find(s=>s.id===setId);
   const qw     = words[q];
-  const wrongs = set.words.filter(w=>w.w!==qw.w).sort(()=>Math.random()-.5).slice(0,3);
+  const sourceSet=wordsets.find(s=>String(s.id)===String(qw._sid||setId));
+  if(qState.type === 'typing' || qState.type === 'write'){
+    const writeWord = qState.writeDirection !== 'meaning';
+    const prompt = writeWord ? qw.m : qw.w;
+    const answerLabel = writeWord ? '단어' : '뜻';
+    document.getElementById('qz-play').innerHTML = `<div class="card" style="text-align:center;margin-bottom:14px;padding:28px;">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${q+1} / ${words.length} · ${answerLabel} 적기</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">다음 내용에 맞는 ${answerLabel}를 입력하세요</div>
+      <div style="font-size:26px;font-weight:700;">${escHTML(prompt)}</div>
+    </div><form onsubmit="submitTypedAnswer(event)" style="display:flex;gap:8px;align-items:stretch;">
+      <input id="qz-answer" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" aria-label="${answerLabel} 입력" style="flex:1;min-width:0;padding:12px;border:1px solid var(--border2);border-radius:var(--r);font-size:16px;">
+      <button id="qz-typed-submit" class="btn btn-primary" type="submit">정답 확인</button>
+    </form><div id="qz-typed-feedback" aria-live="polite" style="margin-top:12px;font-weight:600;"></div>
+    <button id="qz-typed-next" class="btn btn-primary" type="button" onclick="nextTypedQuestion()" style="display:none;margin-top:12px;">다음 문제</button>`;
+    document.getElementById('qz-answer').focus();
+    return;
+  }
+  const wrongs = (qPlaying.allWords||sourceSet?.words||[]).filter(w=>w.w!==qw.w).sort(()=>Math.random()-.5).slice(0,3);
   let html = '';
   // Example-based quiz mode removed; always use meaning-choice mode without showing examples
   const choices = [...wrongs.map(w=>w.m), qw.m].sort(()=>Math.random()-.5);
   html = `<div class="card" style="text-align:center;margin-bottom:14px;padding:28px;">
       <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${q+1} / ${words.length}</div>
       <div style="font-size:28px;font-weight:700;">${qw.w}</div>
-    </div>${choices.map(c=>`<button class="choice-btn" onclick="ansQ(this,'${esc(c)}','${esc(qw.m)}',${setId},${qw._i})">${c}</button>`).join('')}`;
+    </div>${choices.map(c=>`<button class="choice-btn" onclick="ansQ(this,'${esc(c)}','${esc(qw.m)}',${qw._sid||setId},${qw._i})">${c}</button>`).join('')}`;
   document.getElementById('qz-play').innerHTML = html;
 }
 
 function esc(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+
+function escHTML(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function submitTypedAnswer(event){
+  event.preventDefault();
+  const input = document.getElementById('qz-answer');
+  const feedback = document.getElementById('qz-typed-feedback');
+  if(!input || input.disabled) return;
+  const answer = input.value.trim().toLocaleLowerCase().replace(/\s+/g,' ');
+  if(!answer){ feedback.textContent='답을 입력해주세요.'; input.focus(); return; }
+  const qw = qPlaying.words[qPlaying.q];
+  const expectedValue = qState.writeDirection === 'meaning' ? qw.m : qw.w;
+  const expected = String(expectedValue??'').trim().toLocaleLowerCase().replace(/\s+/g,' ');
+  const alternatives = qState.writeDirection === 'meaning'
+    ? String(expectedValue??'').split(/[,，]/).map(v=>v.trim().toLocaleLowerCase().replace(/\s+/g,' ')).filter(Boolean)
+    : [expected];
+  const ok = alternatives.includes(answer);
+  input.disabled = true;
+  document.getElementById('qz-typed-submit').style.display='none';
+  feedback.innerHTML = ok
+    ? '<span style="color:var(--success,#16803c);">정답입니다.</span>'
+    : `<span style="color:var(--danger,#c0392b);">오답입니다. 정답: ${escHTML(expectedValue)}</span>`;
+  qPlaying.log.push({word:qw.w, meaning:qw.m, wordIdx:qw._i, sid:qw._sid||qPlaying.setId, ok});
+  if(ok) qPlaying.score++;
+  document.getElementById('qz-typed-next').style.display='inline-flex';
+  document.getElementById('qz-typed-next').focus();
+}
+
+function nextTypedQuestion(){
+  qPlaying.q++;
+  renderQQ();
+}
 
 function ansQ(btn,chosen,correct,sid,wi){
   if(btn.classList.contains('answered')) return;
@@ -3379,23 +3730,18 @@ function updateQuizProgress(){
   qPlaying.log.forEach(entry=>{
     const p = getProgress(uid, entry.sid);
     p.total++;
-    if(entry.ok){
-      p.correct++;
-    } else {
-      // 틀린 단어를 wordStatus에 review로 기록 — 반드시 uid 기반
-      try{
-        const set = wordsets.find(s=>s.id===entry.sid);
-        if(set && set.words && set.words[entry.wordIdx]){
-          const w = set.words[entry.wordIdx];
-          const wid = w.uid || w._uid;
-          if(wid){
-            p.wordStatus[wid] = 'review';
-          } else {
-            console.warn('[updateQuizProgress] word uid 없음, 무시:', entry);
-          }
-        }
-      }catch(e){ console.warn('[updateQuizProgress] 오류:', e); }
-    }
+    if(entry.ok) p.correct++;
+    // 퀴즈 정답은 학습 증거, 오답은 복습 대상으로 기록한다.
+    try{
+      const set = wordsets.find(s=>s.id===entry.sid);
+      const w = set?.words?.[entry.wordIdx];
+      const wid = w?.uid || w?._uid;
+      if(wid){
+        const prev = p.wordStatus[String(wid)];
+        if(prev && typeof prev==='object') prev.status = entry.ok ? 'known' : 'review';
+        else p.wordStatus[String(wid)] = entry.ok ? 'known' : 'review';
+      } else console.warn('[updateQuizProgress] word uid 없음, 무시:', entry);
+    }catch(e){ console.warn('[updateQuizProgress] 오류:', e); }
     // 단어별 퀴즈 통계(qT/qR) 갱신
     const ws = getP(entry.sid, entry.wordIdx);
     ws.qT++;
@@ -3446,7 +3792,7 @@ function showQResult(){
       <div style="display:flex;gap:8px;justify-content:center;">
         ${failLog.length?`<button class="btn btn-danger" onclick="retryFail()">틀린 단어만 다시</button>`:''}
         <button class="btn" onclick="replayQuiz()">다시 풀기</button>
-        <button class="btn btn-primary" onclick="backToQzSetup()">퀴즈 설정으로</button>
+        <button class="btn btn-primary" onclick="backToQzSetup()">처음으로</button>
       </div>
     </div>`;
 }
@@ -3482,13 +3828,53 @@ function backToQzSetup(){
 // ═══════════════════════════════════════════════
 function populateProgSel(){
   const visible = getVisibleWordsets();
-  document.getElementById('prog-sel').innerHTML = visible.map(s=>`<option value="${s.id}">${s.group && s.group.trim()? '['+s.group.trim()+'] ':''}${s.name}</option>`).join('');
+  const sel=document.getElementById('prog-sel');
+  sel.innerHTML=buildWordsetOptions(visible);
+  if(!visible.length) sel.innerHTML='<option value="">학습할 단어장이 없습니다</option>';
 }
 function renderProg(){
-  const sid = parseInt(document.getElementById('prog-sel').value);
-  const set = wordsets.find(s=>s.id===sid);
   const uid = currentUser?.userId || 'guest';
-  const p   = getProgress(uid, sid);
+  const selection=document.getElementById('prog-sel').value;
+  const selectedSets=getWordsetsForSelection(selection);
+  const head=document.getElementById('prog-head');
+  if(!selectedSets.length){
+    document.getElementById('prog-stats').innerHTML='';
+    document.getElementById('prog-body').innerHTML='';
+    return;
+  }
+  if(selection.startsWith('series:')){
+    const summaries=selectedSets.map(set=>{
+      const p=getProgress(uid,set.id), ws=p.wordStatus||{};
+      let known=0,review=0;
+      set.words.forEach((w,i)=>{
+        const raw=ws[w.uid||w._uid||i], status=typeof raw==='object'&&raw?raw.status:raw;
+        if(status==='known') known++; else if(status==='review') review++;
+      });
+      return {set,known,review,p};
+    });
+    const totalWords=summaries.reduce((n,x)=>n+x.set.words.length,0);
+    const completed=summaries.reduce((n,x)=>n+x.known,0);
+    const review=summaries.reduce((n,x)=>n+x.review,0);
+    const quizTotal=summaries.reduce((n,x)=>n+(x.p.total||0),0);
+    const quizCorrect=summaries.reduce((n,x)=>n+(x.p.correct||0),0);
+    document.getElementById('prog-stats').innerHTML=`
+      <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${completed}/${totalWords}</div><div class="stat-lbl">시리즈 학습 완료</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--cd)">${review}</div><div class="stat-lbl">복습 필요</div></div>
+      <div class="stat-card"><div class="stat-num">${quizTotal?Math.round(quizCorrect/quizTotal*100)+'%':'—'}</div><div class="stat-lbl">퀴즈 정답률</div></div>`;
+    head.innerHTML='<th>DAY</th><th>학습 완료</th><th>복습 필요</th><th>진도</th>';
+    document.getElementById('prog-body').innerHTML=summaries.map(({set,known,review})=>{
+      const pct=set.words.length?Math.round(known/set.words.length*100):0;
+      return `<tr onclick="selectProgressWordset('${set.id}')" style="cursor:pointer;">
+        <td style="font-weight:700;">${escHTML(set.group||set.name)}</td><td>${known} / ${set.words.length}</td><td>${review}</td>
+        <td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:7px;background:var(--bg);border-radius:8px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:var(--cm);"></div></div><span>${pct}%</span></div></td>
+      </tr>`;
+    }).join('');
+    return;
+  }
+  const set=selectedSets[0];
+  const sid=set.id;
+  const p=getProgress(uid,sid);
+  head.innerHTML='<th>단어</th><th>뜻</th><th>상태</th><th>정답률</th>';
   // 단어장별 통계 — 현재 단어장에 남아있는 단어 목록 기준으로 집계
   const ws2 = p.wordStatus || {};
   let completedCnt = 0; let reviewCnt = 0;
@@ -3508,11 +3894,10 @@ function renderProg(){
   const rate         = p.total ? Math.round(p.correct/p.total*100) : 0;
 
   document.getElementById('prog-stats').innerHTML=`
-    <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${completedCnt}</div><div class="stat-lbl">암기 완료</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${completedCnt}</div><div class="stat-lbl">학습 완료</div></div>
     <div class="stat-card"><div class="stat-num" style="color:var(--cd)">${reviewCnt}</div><div class="stat-lbl">복습 필요</div></div>
     <div class="stat-card"><div class="stat-num">${p.total?rate+'%':'—'}</div><div class="stat-lbl">퀴즈 정답률</div></div>`;
 
-  if(!set){document.getElementById('prog-body').innerHTML='';return;}
   document.getElementById('prog-body').innerHTML = set.words.map((w,i)=>{
     const ws  = getP(sid,i); // 단어별 퀴즈 통계
     const wid = w.uid || w._uid || i;
@@ -3523,7 +3908,7 @@ function renderProg(){
     const isCompleted = st === 'known';
     const isReview    = st === 'review';
     const dot = isCompleted
-      ? `<span class="sdot dk"></span>암기`
+      ? `<span class="sdot dk"></span>학습`
       : isReview
         ? `<span class="sdot du"></span>복습 필요`
         : `<span class="sdot dn"></span>미학습`;
@@ -3536,6 +3921,10 @@ function renderProg(){
       <td>${ws.qT?Math.round(ws.qR/ws.qT*100)+'%':'—'}</td>
     </tr>`;
   }).join('');
+}
+function selectProgressWordset(setId){
+  const sel=document.getElementById('prog-sel');
+  if(sel){sel.value=String(setId);renderProg();}
 }
 
 // ═══════════════════════════════════════════════
@@ -3589,11 +3978,37 @@ function _wsMatchSearch(s, kw){
   return false;
 }
 
+function renderAssignedWordsetGroups(items,zone,classId=''){
+  return groupWordsetsBySeries(items).map(group=>{
+    if(!group.key){
+      const s=group.sets[0];
+      return `<div class="ws-watch-item${zone==='shared'?' shared-badge':''}" data-uid="${s.uid}" data-zone="${zone}" ${classId?`data-class-id="${classId}"`:''}>
+        <span class="ws-drag-handle">☰</span><span class="ws-item-name">${escHTML(s.name)}</span><span style="color:var(--text3);">${s.words.length}개</span>
+        <button class="ws-remove-btn" onclick="${zone==='class'?`removeWsFromClass('${s.uid}','${classId}')`:`removeWsFromShared('${s.uid}')`}" title="배정 해제">×</button>
+      </div>`;
+    }
+    const count=group.sets.reduce((n,s)=>n+s.words.length,0);
+    const remove=zone==='class'?`removeSeriesFromClass('${encodeURIComponent(group.key)}','${classId}')`:`removeSeriesFromShared('${encodeURIComponent(group.key)}')`;
+    const childRows=group.sets.map(s=>`<div class="ws-series-day-item" style="display:flex;align-items:center;gap:8px;margin:5px 0 5px 14px;padding:5px 8px;border-left:2px solid var(--border2);font-size:11px;">
+      <span class="ws-item-name">${escHTML(s.group||s.name)}</span><span style="color:var(--text3);">${s.words.length}개</span>
+      <button class="ws-remove-btn" onclick="${zone==='class'?`removeWsFromClass('${s.uid}','${classId}')`:`removeWsFromShared('${s.uid}')`}" title="이 DAY만 해제">×</button>
+    </div>`).join('');
+    return `<div class="card" style="padding:8px 10px;margin:5px 0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <strong class="ws-item-name" style="flex:1;">${escHTML(group.name)}</strong><span style="color:var(--text3);font-size:11px;">${group.sets.length} DAY · ${count}개</span>
+        <button class="ws-remove-btn" onclick="${remove}" title="시리즈 전체 해제">× 전체</button>
+      </div>
+      <details style="margin-top:5px;"><summary style="cursor:pointer;font-size:11px;color:var(--text2);">DAY별 관리</summary>${childRows}</details>
+    </div>`;
+  }).join('');
+}
+
 function renderWordsets(){
   const container = document.getElementById('ws-list');
   const _sbW = document.getElementById('ws-search-bar-wrap');
   if(_sbW) _sbW.style.display='none';
-  if(!wordsets.length){ container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);">단어장이 없습니다.</div>'; return; }
+  const managedWordsets=wordsets.filter(s=>!s.ownerUserId);
+  if(!managedWordsets.length){ container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2);">단어장이 없습니다.</div>'; return; }
 
   let html = '';
 
@@ -3602,22 +4017,18 @@ function renderWordsets(){
     // ── 반별 배정 ──
     classes.forEach(c=>{
       const uids = classWordsets[c.id] || [];
-      const items = uids.map(uid=>wordsets.find(s=>s.uid===uid)).filter(Boolean);
+      const items = uids.map(uid=>managedWordsets.find(s=>s.uid===uid)).filter(Boolean);
+      const groups=groupWordsetsBySeries(items);
+      const dayCount=items.filter(s=>!!getWordsetSeriesKey(s)).length;
+      const groupCountLabel=dayCount?`${groups.length} 단어장 · ${dayCount} DAY`:`${items.length}개 단어장`;
       html += `<div class="ws-watch-group">
         <div class="ws-class-header">
-          <span class="ws-class-title">${c.name} (${items.length})</span>
+          <span class="ws-class-title">${c.name} (${groupCountLabel})</span>
           <button class="ws-class-add-btn" onclick="openAssignToClassPicker('${c.id}')">+ 추가</button>
         </div>
         <div class="dnd-zone" id="wsz-class-${c.id}" data-zone="class" data-class-id="${c.id}">`;
       if(items.length){
-        items.forEach(s=>{
-          html += `<div class="ws-watch-item" data-uid="${s.uid}" data-zone="class" data-class-id="${c.id}">
-            <span class="ws-drag-handle">☰</span>
-            <span class="ws-item-name">${s.name}</span>
-            <span style="color:var(--text3);">${s.words.length}개</span>
-            <button class="ws-remove-btn" onclick="removeWsFromClass('${s.uid}','${c.id}')" title="배정 해제">×</button>
-          </div>`;
-        });
+        html += renderAssignedWordsetGroups(items,'class',c.id);
       } else {
         html += `<span class="ws-zone-empty">단어장을 여기에 드래그하세요</span>`;
       }
@@ -3625,19 +4036,15 @@ function renderWordsets(){
     });
 
     // ── 공유 ──
-    const sharedItems = sharedWordsetUids.map(uid=>wordsets.find(s=>s.uid===uid)).filter(Boolean);
+    const sharedItems = sharedWordsetUids.map(uid=>managedWordsets.find(s=>s.uid===uid)).filter(Boolean);
+    const sharedGroups=groupWordsetsBySeries(sharedItems);
+    const sharedDays=sharedItems.filter(s=>!!getWordsetSeriesKey(s)).length;
+    const sharedCountLabel=sharedDays?`${sharedGroups.length} 단어장 · ${sharedDays} DAY`:`${sharedItems.length}개`;
     html += `<div class="ws-watch-group">
-      <div class="ws-watch-header" style="color:var(--ca-d);">공유 단어장 (${sharedItems.length})</div>
+      <div class="ws-watch-header" style="color:var(--ca-d);">공유 단어장 (${sharedCountLabel})</div>
       <div class="dnd-zone" id="wsz-shared" data-zone="shared" style="border-color:var(--ca);">`;
     if(sharedItems.length){
-      sharedItems.forEach(s=>{
-        html += `<div class="ws-watch-item shared-badge" data-uid="${s.uid}" data-zone="shared">
-          <span class="ws-drag-handle">☰</span>
-          <span class="ws-item-name">${s.name}</span>
-          <span style="color:var(--text3);">${s.words.length}개</span>
-          <button class="ws-remove-btn" onclick="removeWsFromShared('${s.uid}')" title="공유 해제">×</button>
-        </div>`;
-      });
+      html += renderAssignedWordsetGroups(sharedItems,'shared');
     } else {
       html += `<span class="ws-zone-empty">여기에 놓으면 학생이 직접 추가 가능</span>`;
     }
@@ -3738,10 +4145,11 @@ function _bindInlineWsDnD(){
         }
         if(!ins) orderedUids.push(uid);
         if(targetZone==='class' && targetClassId){
-          classWordsets[targetClassId]=orderedUids.filter(u=>wordsets.some(s=>s.uid===u));
+          const current=classWordsets[targetClassId]||[];
+          classWordsets[targetClassId]=[...orderedUids.filter(u=>wordsets.some(s=>s.uid===u)),...current.filter(u=>!orderedUids.includes(u)&&wordsets.some(s=>s.uid===u))];
           saveClassWordsets();
         } else if(targetZone==='shared'){
-          sharedWordsetUids=orderedUids.filter(u=>wordsets.some(s=>s.uid===u));
+          sharedWordsetUids=[...orderedUids.filter(u=>wordsets.some(s=>s.uid===u)),...sharedWordsetUids.filter(u=>!orderedUids.includes(u)&&wordsets.some(s=>s.uid===u))];
           saveSharedWordsets();
         }
       } else {
@@ -3792,10 +4200,11 @@ function _bindInlineWsDnD(){
           wordsets.length = 0; reordered.forEach(s=>wordsets.push(s));
           saveWordsets();
         } else if(targetZone === 'class' && targetClassId){
-          classWordsets[targetClassId] = orderedUids.filter(u=>wordsets.some(s=>s.uid===u));
+          const current=classWordsets[targetClassId]||[];
+          classWordsets[targetClassId]=[...orderedUids.filter(u=>wordsets.some(s=>s.uid===u)),...current.filter(u=>!orderedUids.includes(u)&&wordsets.some(s=>s.uid===u))];
           saveClassWordsets();
         } else if(targetZone === 'shared'){
-          sharedWordsetUids = orderedUids.filter(u=>wordsets.some(s=>s.uid===u));
+          sharedWordsetUids=[...orderedUids.filter(u=>wordsets.some(s=>s.uid===u)),...sharedWordsetUids.filter(u=>!orderedUids.includes(u)&&wordsets.some(s=>s.uid===u))];
           saveSharedWordsets();
         }
         renderWordsets(); return;
@@ -3861,8 +4270,24 @@ function removeWsFromShared(uid){
   renderWordsets();
   showToast('공유 해제');
 }
+function _decodeSeriesKey(key){try{return decodeURIComponent(key);}catch(e){return '';}}
+function removeSeriesFromClass(encodedKey,classId){
+  const key=_decodeSeriesKey(encodedKey); if(!key||!classWordsets[classId]) return;
+  const removeUids=new Set(wordsets.filter(s=>getWordsetSeriesKey(s)===key).map(s=>s.uid));
+  pushUndoState('시리즈 반 배정 해제');
+  classWordsets[classId]=classWordsets[classId].filter(uid=>!removeUids.has(uid));
+  saveClassWordsets(); renderWordsets(); showToast('시리즈 전체를 반에서 해제했습니다.');
+}
+function removeSeriesFromShared(encodedKey){
+  const key=_decodeSeriesKey(encodedKey); if(!key) return;
+  const removeUids=new Set(wordsets.filter(s=>getWordsetSeriesKey(s)===key).map(s=>s.uid));
+  pushUndoState('시리즈 공유 해제');
+  sharedWordsetUids=sharedWordsetUids.filter(uid=>!removeUids.has(uid));
+  saveSharedWordsets(); renderWordsets(); showToast('시리즈 전체 공유를 해제했습니다.');
+}
 function deleteSet(id){
   const set = wordsets.find(s=>s.id===id);
+  if(currentUser?.role!=='teacher' || set?.ownerUserId){showToast('단어장 삭제 권한이 없습니다.');return;}
   // 이 단어장에 학생 학습 진도가 있는지 확인
   const matchKeys = new Set([String(id)]);
   if(set && set.uid) matchKeys.add(set.uid);
@@ -3945,6 +4370,7 @@ function closeNewsetSmart(){
 }
 
 function openNewSet(){
+  if(currentUser?.role!=='teacher' && currentUser?.accountType!=='personal'){showToast('학생 계정은 단어장을 수정할 수 없습니다.');return;}
   document.getElementById('edit-set-id').value    = '';
   document.getElementById('newset-title').textContent = '새 단어장 만들기';
   document.getElementById('ns-name').value        = '';
@@ -3958,6 +4384,7 @@ function openNewSet(){
 }
 function openEditSet(id){
   const set = wordsets.find(s=>s.id===id); if(!set) return;
+  if(currentUser?.accountType==='personal' ? set.ownerUserId!==currentUser.userId : (currentUser?.role!=='teacher'||!!set.ownerUserId)) {showToast('수정 권한이 없습니다.');return;}
   document.getElementById('edit-set-id').value    = id;
   document.getElementById('newset-title').textContent = '단어장 수정';
   document.getElementById('ns-name').value        = set.name;
@@ -4026,6 +4453,8 @@ function saveSet(){
   const editId  = document.getElementById('edit-set-id').value;
   _dbg('[saveSet] 시작 — editId:', editId, '| name:', name);
   if(!name){showToast('단어장 이름을 입력해주세요.');return;}
+  if(currentUser?.accountType==='personal' && editId && wordsets.find(s=>s.id==editId)?.ownerUserId!==currentUser.userId){showToast('수정 권한이 없습니다.');return;}
+  if(currentUser?.role!=='teacher' && currentUser?.accountType!=='personal'){showToast('학생 계정은 단어장을 수정할 수 없습니다.');return;}
   if(name.length>20){showToast('단어장 이름은 20자 이내로 입력해주세요.');return;}
   const raw = [];
   document.querySelectorAll('#ns-entries .we-grid').forEach(row=>{
@@ -4094,7 +4523,7 @@ function saveSet(){
   } else {
     const nid = Date.now();
     let _wc = 0;
-    const newSet = {id:nid, name, subject, group, tags:[..._nsTags], words: raw.map(r=>({w:r.w,m:r.m,ex:r.ex, uid:('w_'+nid+'_'+(++_wc)+'_'+Math.floor(Math.random()*100000))}))};
+    const newSet = {id:nid, name, subject, group, tags:[..._nsTags], ...(currentUser?.accountType==='personal'?{ownerUserId:currentUser.userId}:{}), words: raw.map(r=>({w:r.w,m:r.m,ex:r.ex, uid:('w_'+nid+'_'+(++_wc)+'_'+Math.floor(Math.random()*100000))}))};
     newSet.uid = 'ws_'+nid+'_'+Math.floor(Math.random()*100000);
     wordsets.push(newSet);
     _dbg('[saveSet] 신규 — uid:', newSet.uid);
@@ -4103,6 +4532,7 @@ function saveSet(){
   _dbg('[saveSet] 저장 후 vm_wordsets bytes:', (localStorage.getItem('vm_wordsets')||'').length);
   closeModal('modal-newset');
   renderWordsets();
+  if(currentUser?.accountType==='personal') renderPersonalWordsets();
   showToast(editId?'단어장이 수정되었습니다!':'단어장이 저장되었습니다!');
   _returnToManageModal();
 }
@@ -4112,38 +4542,70 @@ function saveSet(){
 // ═══════════════════════════════════════════════
 function downloadSample(){
   const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent('word,meaning,example\napple,사과,I eat an apple every day.\nbook,책,She reads a book every night.\nschool,학교,');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent('day,word,meaning,example\nDAY1,apple,사과,I eat an apple every day.\nDAY1,book,책,She reads a book every night.\nDAY2,school,학교,');
   a.download = 'vocab_sample.csv';
   a.click();
 }
 function handleCSV(input){if(input.files[0])parseCSVFile(input.files[0]);}
-function parseCSVFile(file){const reader=new FileReader();reader.onload=e=>parseCSVText(e.target.result);reader.readAsText(file,'UTF-8');}
+function parseCSVFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const bytes=e.target.result;
+    let text='';
+    try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}
+    catch(err){try{text=new TextDecoder('euc-kr').decode(bytes);}catch(e){text=new TextDecoder().decode(bytes);}}
+    parseCSVText(text);
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseCSVRow(line){
+  const cols=[]; let value=''; let quoted=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"' && quoted && line[i+1]==='"'){ value+='"'; i++; }
+    else if(ch==='"') quoted=!quoted;
+    else if(ch===',' && !quoted){ cols.push(value.trim()); value=''; }
+    else value+=ch;
+  }
+  cols.push(value.trim());
+  return cols;
+}
+function normalizeCsvDay(value){
+  const raw=String(value||'').trim();
+  if(!raw) return '미분류';
+  const match=raw.match(/(?:day|lesson|unit|일차|회차)?\s*0*(\d+)/i);
+  return match ? `DAY${parseInt(match[1],10)}` : raw.toUpperCase().slice(0,12);
+}
 function parseCSVText(text){
+  text = String(text||'').replace(/^\uFEFF/,'');
   const lines = text.trim().split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length){ csvParsed=[]; renderCSVPreview(); return; }
   const firstLine = lines[0].toLowerCase();
-  const hasHeader = firstLine.includes('word') || firstLine.includes('단어');
+  const hasHeader = firstLine.includes('word') || firstLine.includes('단어') || firstLine.includes('day') || firstLine.includes('일차') || firstLine.includes('회차');
   const start = hasHeader ? 1 : 0;
 
   // 컬럼 감지 (헤더 기반 또는 위치 기반)
-  let colW=0, colM=1, colEx=2;
+  let colW=0, colM=1, colEx=2, colDay=-1;
   if(hasHeader){
-    const hcols = lines[0].split(',').map(c=>c.trim().toLowerCase().replace(/^"|"$/g,''));
+    colEx=-1;
+    const hcols = parseCSVRow(lines[0]).map(c=>c.trim().toLowerCase());
     const wi = hcols.findIndex(c=>c==='word'||c==='단어'||c==='영어');
     const mi = hcols.findIndex(c=>c==='meaning'||c==='뜻'||c==='의미'||c==='한국어');
     const ei = hcols.findIndex(c=>c==='example'||c==='예문'||c==='ex');
-    if(wi>=0) colW=wi; if(mi>=0) colM=mi; if(ei>=0) colEx=ei;
+    const di = hcols.findIndex(c=>c==='day'||c==='lesson'||c==='unit'||c==='일차'||c==='회차'||c==='day/group');
+    if(wi>=0) colW=wi; if(mi>=0) colM=mi; if(ei>=0) colEx=ei; if(di>=0) colDay=di;
   }
 
   const seenWords = new Set();
   csvParsed = lines.slice(start).map((l,idx)=>{
     // 따옴표 안 쉼표 처리
-    const cols = l.match(/("(?:[^"]*)")|([^,]+)|(?<=,)(?=,)|(?<=,)$/g) || l.split(',');
-    const clean = cols.map(c=>(c||'').trim().replace(/^"|"$/g,''));
+    const clean = parseCSVRow(l);
     const w = clean[colW]||'', m = clean[colM]||'', ex = clean[colEx]||'';
+    const day = colDay>=0 ? normalizeCsvDay(clean[colDay]) : '';
     const dup = seenWords.has(w.toLowerCase());
     if(w) seenWords.add(w.toLowerCase());
     const valid = !!(w && m);
-    return {w, m, ex, valid, dup, rowNum: idx+start+1};
+    return {w, m, ex, day, valid, dup, rowNum: idx+start+1};
   }).filter(r=>r.w); // w가 있는 행만
 
   renderCSVPreview();
@@ -4155,6 +4617,7 @@ function renderCSVPreview(tbodyId, countId){
   const validRows = csvParsed.filter(r=>r.valid);
   const invalidRows = csvParsed.filter(r=>!r.valid);
   const dupRows = csvParsed.filter(r=>r.dup);
+  const dayGroups = new Set(csvParsed.filter(r=>r.valid&&r.day).map(r=>r.day));
 
   const previewEl = document.getElementById('wm-csv-preview');
   if(previewEl) previewEl.style.display='block';
@@ -4163,6 +4626,7 @@ function renderCSVPreview(tbodyId, countId){
   const countEl = document.getElementById(countId);
   if(countEl){
     let summaryHtml = `${validRows.length}개 단어 인식됨`;
+    if(dayGroups.size) summaryHtml += ` · DAY ${dayGroups.size}개 단어장으로 분리 예정`;
     if(invalidRows.length) summaryHtml += ` <span class="badge badge-red" style="font-size:10px;">뜻 없음 ${invalidRows.length}행</span>`;
     if(dupRows.length) summaryHtml += ` <span class="badge badge-amber" style="font-size:10px;">중복 ${dupRows.length}개</span>`;
     countEl.innerHTML = summaryHtml;
@@ -4176,10 +4640,11 @@ function renderCSVPreview(tbodyId, countId){
     const errTag = !r.valid ? `<span class="csv-val-err">뜻 없음</span>` : '';
     return `<tr style="${style}">
       <td style="color:var(--text3)">${r.rowNum}</td>
+      <td>${r.day||'—'}</td>
       <td style="font-weight:600;">${r.w}${dupTag}</td>
       <td>${r.m}${errTag}</td>
     </tr>`;
-  }).join('') + (!showAll ? `<tr><td colspan="3" style="text-align:center;color:var(--text2);padding:8px;">... 외 ${csvParsed.length-15}개</td></tr>` : '');
+  }).join('') + (!showAll ? `<tr><td colspan="4" style="text-align:center;color:var(--text2);padding:8px;">... 외 ${csvParsed.length-15}개</td></tr>` : '');
 }
 
 function csvBulkAI(){ showToast('AI 예문 생성 기능은 현재 비활성화되어 있습니다.'); }
@@ -4198,16 +4663,30 @@ function importCSV(){
   if(dupCount && !confirm(`중복 단어 ${dupCount}개가 포함되어 있습니다. 그대로 가져오시겠습니까?`)) return;
 
   pushUndoState('CSV 임포트');
-  const nid = Date.now();
-  let _wc = 0;
-  const newSet = {
-    id: nid, name, subject, group: '',
-    words: validWords.map(r=>({w:r.w, m:r.m, ex:r.ex, uid:'w_'+nid+'_'+(++_wc)+'_'+Math.floor(Math.random()*100000)}))
-  };
-  newSet.uid = 'ws_'+nid+'_'+Math.floor(Math.random()*100000);
-  wordsets.push(newSet);
+  const groups = new Map();
+  validWords.forEach(r=>{
+    const key = r.day || '';
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(r);
+  });
+  const hasDaySeries=groups.size>1 || validWords.some(r=>r.day);
+  const existingSeries=wordsets.find(s=>s.seriesUid && s.seriesName===name && s.subject===subject);
+  const legacySeries=wordsets.some(s=>getWordsetSeriesKey(s)===`legacy:${subject||''}:${name}`);
+  const seriesUid=hasDaySeries ? (existingSeries?.seriesUid || (legacySeries?'':'series_'+Date.now()+'_'+Math.floor(Math.random()*100000))) : '';
+  groups.forEach((rows,day)=>{
+    const nid = Date.now()+wordsets.length;
+    const suffix = day ? ` ${day}` : '';
+    const setName = (name.slice(0,Math.max(1,20-suffix.length))+suffix).slice(0,20);
+    const newSet = {
+      id:nid, name:setName, subject, group:day||'', tags:day?[name]:[],
+      ...(seriesUid?{seriesUid,seriesName:name}:{}),
+      words:rows.map((r,i)=>({w:r.w,m:r.m,ex:r.ex,uid:'w_'+nid+'_'+(i+1)+'_'+Math.floor(Math.random()*100000)}))
+    };
+    newSet.uid = 'ws_'+nid+'_'+Math.floor(Math.random()*100000);
+    wordsets.push(newSet);
+  });
   saveWordsets();
-  showToast(`${validWords.length}개 단어를 가져왔습니다!`);
+  showToast(groups.size>1 || validWords.some(r=>r.day) ? `${groups.size}개 DAY 단어장 · ${validWords.length}개 단어를 가져왔습니다!` : `${validWords.length}개 단어를 가져왔습니다!`);
   csvParsed=[];
   document.getElementById('wm-csv-preview').style.display='none';
   document.getElementById('wm-csv-name').value='';
@@ -4290,12 +4769,12 @@ function renderWsManageList(){
 
   // 과목 목록 갱신
   if(subjectSel){
-    const allSubjects = [...new Set(wordsets.map(s=>s.subject||'').filter(Boolean))].sort();
+    const allSubjects = [...new Set(wordsets.filter(s=>!s.ownerUserId).map(s=>s.subject||'').filter(Boolean))].sort();
     const prev = subjectSel.value;
     subjectSel.innerHTML = `<option value="">전체 과목</option>` + allSubjects.map(g=>`<option value="${g}"${g===prev?' selected':''}>${g}</option>`).join('');
   }
 
-  let filtered = wordsets;
+  let filtered = wordsets.filter(s=>!s.ownerUserId);
   if(selectedSubject){
     filtered = filtered.filter(s=>(s.subject||'')===selectedSubject);
   }
@@ -4311,25 +4790,46 @@ function renderWsManageList(){
     container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text2);font-size:13px;">${keyword||selectedSubject?'검색 결과가 없습니다.':'단어장이 없습니다.'}</div>`;
     return;
   }
-  const canDrag = !keyword && !selectedSubject;
-  let html = '';
-  filtered.forEach(s=>{
+  const canDrag = !keyword && !selectedSubject && !_bulkMode && filtered.every(s=>!getWordsetSeriesKey(s));
+  const renderSetRow = s=>{
+    const dayName=getWordsetSeriesKey(s) ? (s.group||s.name.replace(getWordsetSeriesName(s),'').trim()||s.name) : s.name;
     const ac = classes.filter(c=>(classWordsets[c.id]||[]).includes(s.uid)).map(c=>c.name);
     const isSh = sharedWordsetUids.includes(s.uid);
     const classBadges = ac.map(n=>`<span class="badge badge-purple" style="font-size:9px;">${n}</span>`).join('');
     const shareBadge = isSh ? `<span class="badge badge-amber" style="font-size:9px;">공유</span>` : '';
     const tagBadges = (s.tags||[]).map(t=>`<span class="badge badge-amber" style="font-size:9px;">#${t}</span>`).join('');
-    const groupBadge = s.group ? `<span class="badge badge-teal" style="font-size:9px;">${s.group}</span>` : '';
-    html += `<div class="wm-item${canDrag?' wm-draggable':''}" data-uid="${s.uid}">
+    const groupBadge = s.group && !getWordsetSeriesKey(s) ? `<span class="badge badge-teal" style="font-size:9px;">${escHTML(s.group)}</span>` : '';
+    const checked = _selectedUids.has(s.uid) ? 'checked' : '';
+    return `<div class="wm-item${canDrag?' wm-draggable':''}" data-uid="${s.uid}">
+      ${_bulkMode?`<input type="checkbox" value="${s.uid}" ${checked} aria-label="${dayName} 선택" onchange="toggleBulkSelect(this.value,this.checked)" style="width:18px;height:18px;flex-shrink:0;">`:''}
       ${canDrag?'<span class="ws-drag-handle" style="flex-shrink:0;">☰</span>':''}
       <div class="wm-info">
-        <div class="wm-name">${s.name} <span class="wm-meta">${s.words.length}개</span></div>
+        <div class="wm-name">${escHTML(dayName)} <span class="wm-meta">${s.words.length}개</span></div>
         <div class="wm-tags"><span class="badge ${SBADGE(s.subject)}" style="font-size:9px;">${s.subject}</span>${groupBadge}${classBadges}${shareBadge}${tagBadges}</div>
       </div>
       <span class="wm-actions">
         <button class="btn btn-sm" onclick="_wsFromManageModal=true;openEditSet(${s.id})" title="수정">수정</button>
         <button class="btn btn-sm btn-danger" onclick="deleteSet(${s.id});renderWsManageList()" title="삭제">삭제</button>
       </span>
+    </div>`;
+  };
+  let html = '';
+  groupWordsetsBySeries(filtered).forEach(group=>{
+    if(!group.key){ html+=renderSetRow(group.sets[0]); return; }
+    const totalWords=group.sets.reduce((n,s)=>n+s.words.length,0);
+    const assigned=classes.filter(c=>group.sets.some(s=>(classWordsets[c.id]||[]).includes(s.uid))).map(c=>c.name);
+    const shared=group.sets.some(s=>sharedWordsetUids.includes(s.uid));
+    const assignBadge=assigned.map(n=>`<span class="badge badge-purple" style="font-size:9px;">${escHTML(n)}</span>`).join('');
+    html+=`<div class="card" style="padding:10px 12px;margin:6px 0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <strong style="flex:1;">${escHTML(group.name)}</strong>
+        <span class="wm-meta">${group.sets.length} DAY · ${totalWords}개 단어</span>${assignBadge}${shared?'<span class="badge badge-amber" style="font-size:9px;">공유</span>':''}
+        <button class="btn btn-sm" onclick="shareWordsetSeries('${encodeURIComponent(group.key)}')">시리즈 공유</button>
+        <button class="btn btn-sm" onclick="assignSeriesToClassPrompt('${encodeURIComponent(group.key)}')">시리즈 반 배정</button>
+      </div>
+      <details><summary style="cursor:pointer;font-size:12px;color:var(--text2);">DAY 목록 및 개별 편집</summary>
+        <div style="margin-top:6px;">${group.sets.map(renderSetRow).join('')}</div>
+      </details>
     </div>`;
   });
   container.innerHTML = html;
@@ -4435,12 +4935,16 @@ function openAssignToClassPicker(classId){
   const unassigned = wordsets.filter(s=>!assigned.has(s.uid));
   if(!unassigned.length){ showToast('추가할 단어장이 없습니다.'); return; }
   let html = `<div style="font-size:14px;font-weight:700;margin-bottom:12px;">${cls.name}에 단어장 추가</div>`;
-  html += unassigned.map(s=>`<div class="wm-item" style="cursor:pointer;" onclick="assignWsToClass('${s.uid}','${classId}');this.remove();">
-    <span class="wm-name">${s.name}</span>
-    <span class="wm-meta">${s.words.length}개</span>
-    <span class="badge ${SBADGE(s.subject)}" style="font-size:9px;">${s.subject}</span>
-    <span style="color:var(--cm);font-size:12px;font-weight:600;">+ 추가</span>
-  </div>`).join('');
+  html += groupWordsetsBySeries(unassigned).map(group=>{
+    if(!group.key){const s=group.sets[0];return `<div class="wm-item" style="cursor:pointer;" onclick="assignWsToClass('${s.uid}','${classId}');this.remove();"><span class="wm-name">${escHTML(s.name)}</span><span class="wm-meta">${s.words.length}개</span><span class="badge ${SBADGE(s.subject)}" style="font-size:9px;">${escHTML(s.subject)}</span><span style="color:var(--cm);font-size:12px;font-weight:600;">+ 추가</span></div>`;}
+    const count=group.sets.reduce((n,s)=>n+s.words.length,0), encoded=encodeURIComponent(group.key);
+    return `<div class="card wm-series-pick" style="padding:9px 11px;margin:5px 0;">
+      <div style="display:flex;align-items:center;gap:8px;"><strong style="flex:1;">${escHTML(group.name)}</strong><span class="wm-meta">${group.sets.length} DAY · ${count}개</span>
+        <button class="btn btn-sm btn-primary" onclick="assignSeriesToClass('${encoded}','${classId}');this.closest('.wm-series-pick').remove();">전체 추가</button></div>
+      <details style="margin-top:5px;"><summary style="cursor:pointer;font-size:11px;color:var(--text2);">DAY별 선택</summary>
+        ${group.sets.map(s=>`<div class="wm-item" style="cursor:pointer;" onclick="assignWsToClass('${s.uid}','${classId}');this.remove();"><span class="wm-name">${escHTML(s.group||s.name)}</span><span class="wm-meta">${s.words.length}개</span><span style="color:var(--cm);font-size:12px;font-weight:600;">+ 추가</span></div>`).join('')}
+      </details></div>`;
+  }).join('');
   // 간단한 인라인 모달
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
@@ -4463,6 +4967,35 @@ function assignWsToClass(uid, classId){
     showToast(`${ws?.name||''} → ${cls?.name||''} 배정`);
     renderWordsets();
   }
+}
+function assignSeriesToClass(encodedKey,classId){
+  const key=_decodeSeriesKey(encodedKey); if(!key) return;
+  const members=wordsets.filter(s=>getWordsetSeriesKey(s)===key);
+  if(!members.length) return;
+  if(!classWordsets[classId]) classWordsets[classId]=[];
+  const fresh=members.filter(s=>!classWordsets[classId].includes(s.uid));
+  if(!fresh.length){showToast('이미 시리즈 전체가 배정되어 있습니다.');return;}
+  pushUndoState('시리즈 반 배정');
+  classWordsets[classId].push(...fresh.map(s=>s.uid));
+  saveClassWordsets(); renderWordsets();
+  const cls=classes.find(c=>c.id===classId);
+  showToast(`${members.length} DAY 시리즈를 ${cls?.name||'반'}에 배정했습니다.`);
+}
+function shareWordsetSeries(encodedKey){
+  const key=_decodeSeriesKey(encodedKey); if(!key) return;
+  const members=wordsets.filter(s=>getWordsetSeriesKey(s)===key);
+  const fresh=members.filter(s=>!sharedWordsetUids.includes(s.uid));
+  if(!fresh.length){showToast('이미 시리즈 전체가 공유되어 있습니다.');return;}
+  pushUndoState('시리즈 공유 추가');
+  sharedWordsetUids.push(...fresh.map(s=>s.uid));
+  saveSharedWordsets(); renderWsManageList(); renderWordsets();
+  showToast(`${members.length} DAY 시리즈를 공유했습니다.`);
+}
+function assignSeriesToClassPrompt(encodedKey){
+  if(!classes.length){showToast('등록된 반이 없습니다.');return;}
+  const options=classes.map((c,i)=>`${i+1}: ${c.name}`).join('\n');
+  const idx=parseInt(prompt(`시리즈를 배정할 반 번호를 입력하세요:\n${options}`))-1;
+  if(Number.isInteger(idx)&&idx>=0&&idx<classes.length) assignSeriesToClass(encodedKey,classes[idx].id);
 }
 
 // ═══════════════════════════════════════════════
@@ -5213,7 +5746,11 @@ function validateAllData(){
  */
 function getVisibleWordsets(){
   if(!currentUser) return [];
-  if(currentUser.role === 'teacher') return wordsets;
+  if(currentUser.accountType==='personal'){
+    const personalUids=new Set(studentExtraWordsets[currentUser.userId]||[]);
+    return wordsets.filter(s=>s.ownerUserId===currentUser.userId||(!s.ownerUserId&&sharedWordsetUids.includes(s.uid)&&personalUids.has(s.uid)));
+  }
+  if(currentUser.role === 'teacher') return wordsets.filter(s=>!s.ownerUserId);
   // 학생인 경우
   const stu = students.find(s=>s.userId===currentUser.userId);
   const myClassId = stu ? stu.classId : '';
@@ -5221,7 +5758,59 @@ function getVisibleWordsets(){
   const extraUids = studentExtraWordsets[currentUser.userId] || [];
   const allowedUids = new Set([...classUids, ...extraUids]);
   if(allowedUids.size === 0) return [];
-  return wordsets.filter(s => allowedUids.has(s.uid));
+  return wordsets.filter(s => !s.ownerUserId && allowedUids.has(s.uid));
+}
+
+function openPersonalWordsets(){
+  if(currentUser?.accountType!=='personal')return;
+  renderPersonalWordsets();
+  document.getElementById('modal-personal-wordsets').classList.add('open');
+}
+function renderPersonalWordsets(){
+  const list=document.getElementById('personal-wordset-list'); if(!list)return;
+  const mine=wordsets.filter(s=>s.ownerUserId===currentUser?.userId);
+  if(!mine.length){list.innerHTML='<div style="padding:18px;text-align:center;color:var(--text2);">아직 단어장이 없습니다. 직접 만들거나 CSV를 가져오세요.</div>';return;}
+  const renderRow=s=>`<div style="display:flex;align-items:center;gap:8px;padding:8px;border-top:.5px solid var(--border);"><div style="flex:1"><strong>${escHTML(s.group||s.name)}</strong><div style="font-size:11px;color:var(--text2);">${s.words.length}개 단어</div></div><button class="btn btn-sm" onclick="exportPersonalWordset('${s.uid}')">CSV</button><button class="btn btn-sm" onclick="closeModal('modal-personal-wordsets');openEditSet(${s.id})">수정</button><button class="btn btn-sm btn-danger" onclick="deletePersonalWordset('${s.uid}')">삭제</button></div>`;
+  list.innerHTML=groupWordsetsBySeries(mine).map(group=>group.key
+    ?`<div class="card" style="padding:10px 12px;margin:7px 0;"><div style="display:flex;align-items:center;gap:8px;"><strong style="flex:1">${escHTML(group.name)}</strong><span style="font-size:11px;color:var(--text2);">${group.sets.length} DAY · ${group.sets.reduce((n,s)=>n+s.words.length,0)}개 단어</span></div><details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12px;color:var(--text2);">DAY별 단어장</summary>${group.sets.map(renderRow).join('')}</details></div>`
+    :`<div class="card" style="padding:10px 12px;margin:7px 0;">${renderRow(group.sets[0])}</div>`).join('');
+}
+function openPersonalNewSet(){
+  if(currentUser?.accountType!=='personal')return;
+  closeModal('modal-personal-wordsets'); openNewSet();
+}
+function importPersonalCSV(input){
+  const file=input?.files?.[0]; if(!file||currentUser?.accountType!=='personal')return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    let text=''; const bytes=e.target.result;
+    try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch(err){try{text=new TextDecoder('euc-kr').decode(bytes);}catch(e2){text=new TextDecoder().decode(bytes);}}
+    parseCSVText(text);
+    const valid=csvParsed.filter(r=>r.valid);
+    if(!valid.length){showToast('가져올 단어가 없습니다.');input.value='';return;}
+    const base=(file.name||'내 단어장').replace(/\.(csv|txt)$/i,'').slice(0,20)||'내 단어장';
+    const groups=new Map(); valid.forEach(r=>{const k=r.day||'';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);});
+    const seriesUid=groups.size>1||valid.some(r=>r.day)?'series_'+Date.now()+'_'+Math.floor(Math.random()*100000):'';
+    groups.forEach((rows,day)=>{
+      const id=Date.now()+wordsets.length; const suffix=day?` ${day}`:''; const name=(base.slice(0,Math.max(1,20-suffix.length))+suffix).slice(0,20);
+      const set={id,uid:'ws_'+id+'_'+Math.floor(Math.random()*100000),name,subject:'기타',group:day||'',tags:[],ownerUserId:currentUser.userId,...(seriesUid?{seriesUid,seriesName:base}:{}),words:rows.map((r,i)=>({w:r.w,m:r.m,ex:r.ex,uid:'w_'+id+'_'+(i+1)+'_'+Math.floor(Math.random()*100000)}))};
+      wordsets.push(set);
+    });
+    saveWordsets(); csvParsed=[]; input.value=''; populateSelects(); renderPersonalWordsets(); showToast(`${valid.length}개 단어를 가져왔습니다.`);
+  };
+  reader.readAsArrayBuffer(file);
+}
+function exportPersonalWordset(uid){
+  const s=wordsets.find(x=>x.uid===uid&&x.ownerUserId===currentUser?.userId); if(!s)return;
+  const rows=['day,word,meaning,example']; s.words.forEach(w=>rows.push([_csvEsc(s.group||''),_csvEsc(w.w),_csvEsc(w.m),_csvEsc(w.ex||'')].join(',')));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=(s.name||'wordset').replace(/[^\w\uAC00-\uD7A3]/g,'_')+'.csv'; a.click(); a.remove();
+}
+function deletePersonalWordset(uid){
+  const s=wordsets.find(x=>x.uid===uid&&x.ownerUserId===currentUser?.userId); if(!s)return;
+  if(!confirm(`'${s.name}' 단어장을 삭제할까요? 이 단어장의 개인 진도도 함께 삭제됩니다.`))return;
+  delete progress[currentUser.userId]?.[s.uid];
+  wordsets=wordsets.filter(x=>x.uid!==uid); saveWordsets(); saveAllState(); populateSelects(); renderPersonalWordsets();
 }
 
 function copyCode(){
@@ -5299,16 +5888,15 @@ function renderStatistics(){
   const myWordsets = wsUids.map(uid=>wordsets.find(s=>s.uid===uid)).filter(Boolean);
 
   // ── 요약 통계 ──
+  const wordsetGroups=groupWordsetsBySeries(myWordsets);
   const totalWords = myWordsets.reduce((s,ws)=>s+ws.words.length,0);
-  const avgKnown = myWordsets.length && stuUserIds.length
-    ? Math.round(myWordsets.reduce((s,ws)=>{
-        const p = _calcWordsetProgress(ws.uid, stuUserIds);
-        return s + p.pct;
-      }, 0) / myWordsets.length)
-    : 0;
+  const totals=myWordsets.reduce((a,ws)=>{
+    const p=_calcWordsetProgress(ws.uid,stuUserIds); a.known+=p.known; a.total+=p.total; return a;
+  },{known:0,total:0});
+  const avgKnown=totals.total?Math.round(totals.known/totals.total*100):0;
 
   document.getElementById('stat-summary').innerHTML = `
-    <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${myWordsets.length}</div><div class="stat-lbl">배정 단어장</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${wordsetGroups.length}</div><div class="stat-lbl">배정 단어장 / 시리즈</div></div>
     <div class="stat-card"><div class="stat-num">${totalWords}</div><div class="stat-lbl">총 단어 수</div></div>
     <div class="stat-card"><div class="stat-num" style="color:var(--cm)">${avgKnown}%</div><div class="stat-lbl">평균 마스터율</div></div>`;
 
@@ -5317,20 +5905,21 @@ function renderStatistics(){
   if(!myWordsets.length){
     barsEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text2);font-size:13px;">배정된 단어장이 없습니다.</div>';
   } else {
-    barsEl.innerHTML = myWordsets.map(ws=>{
-      const p = _calcWordsetProgress(ws.uid, stuUserIds);
-      const knownPct = p.total ? Math.round(p.known/p.total*100) : 0;
-      const reviewPct = p.total ? Math.round(p.review/p.total*100) : 0;
-      return `<div class="stat-row">
-        <span class="stat-row-name" title="${ws.name}">${ws.name}</span>
-        <div style="flex:1;margin:0 12px;">
-          <div class="stat-bar-wrap">
-            <div class="stat-bar-fill" style="width:${knownPct}%;background:var(--cm);"></div>
-          </div>
-          <div style="font-size:10px;color:var(--text3);">${p.known}암기 · ${p.review}복습 / ${p.total}단어</div>
-        </div>
-        <span class="stat-pct">${knownPct}%</span>
-      </div>`;
+    barsEl.innerHTML = wordsetGroups.map(group=>{
+      const rows=group.sets.map(ws=>({ws,p:_calcWordsetProgress(ws.uid,stuUserIds)}));
+      const p=rows.reduce((a,x)=>{a.known+=x.p.known;a.review+=x.p.review;a.total+=x.p.total;return a;},{known:0,review:0,total:0});
+      const knownPct=p.total?Math.round(p.known/p.total*100):0;
+      const renderBar=(label,stats,meta='')=>{
+        const pct=stats.total?Math.round(stats.known/stats.total*100):0;
+        return `<div class="stat-row"><span class="stat-row-name" title="${escHTML(label)}">${escHTML(label)}</span>
+          <div style="flex:1;margin:0 12px;"><div class="stat-bar-wrap"><div class="stat-bar-fill" style="width:${pct}%;background:var(--cm);"></div></div>
+          <div style="font-size:10px;color:var(--text3);">${stats.known}학습 · ${stats.review}복습 / ${stats.total}단어${meta}</div></div><span class="stat-pct">${pct}%</span></div>`;
+      };
+      if(!group.key) return renderBar(group.name,p);
+      const dayRows=rows.map(({ws, p:dayProgress})=>renderBar(ws.group||ws.name,dayProgress)).join('');
+      return `<details style="margin-bottom:8px;"><summary style="cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:10px;">
+        <strong style="flex:1;">${escHTML(group.name)}</strong><span style="font-size:11px;color:var(--text2);">${group.sets.length} DAY · ${p.known}/${p.total} 학습</span><span class="stat-pct">${knownPct}%</span>
+      </summary><div style="margin-left:18px;border-left:2px solid var(--border);padding-left:8px;">${dayRows}</div></details>`;
     }).join('');
   }
 
@@ -5377,32 +5966,36 @@ window.addEventListener('load',()=>{
 /** 학생 — 단어장 추가 모달 열기 */
 function openAddWordsetModal(){
   const body = document.getElementById('shared-wordset-list');
+  const help=document.getElementById('add-wordset-help');
+  const isPersonal=currentUser?.accountType==='personal';
+  if(help) help.textContent=isPersonal?'다른 학습자가 공유한 단어장 중에서 골라 내 목록에 추가할 수 있습니다. 현재는 이 기기에서 제공하는 공유 목록입니다.':'선생님이 공유한 단어장 중에서 선택하여 내 목록에 추가하세요.';
   const myExtras = studentExtraWordsets[currentUser?.userId] || [];
   // 학생의 반에 이미 할당된 단어장 uid
-  const stu = students.find(s=>s.userId===currentUser?.userId);
+  const stu = isPersonal?null:students.find(s=>s.userId===currentUser?.userId);
   const myClassUids = (stu?.classId && classWordsets[stu.classId]) ? classWordsets[stu.classId] : [];
 
-  if(!sharedWordsetUids.length){
-    body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text2);">선생님이 공유한 단어장이 없습니다.</div>';
+  const availableShared=sharedWordsetUids.map(uid=>wordsets.find(s=>s.uid===uid&&!s.ownerUserId)).filter(Boolean);
+  if(!availableShared.length){
+    body.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text2);">${isPersonal?'공유 목록에 등록된 단어장이 아직 없습니다.':'선생님이 공유한 단어장이 없습니다.'}</div>`;
   } else {
-    body.innerHTML = sharedWordsetUids.map(uid=>{
-      const ws = wordsets.find(s=>s.uid===uid);
-      if(!ws) return '';
-      const alreadyInClass = myClassUids.includes(uid);
-      const alreadyAdded = myExtras.includes(uid);
-      const status = alreadyInClass ? '<span class="badge badge-teal">반 기본</span>'
-        : alreadyAdded ? '<span class="badge badge-purple">추가됨</span>'
-        : '';
-      const btn = (alreadyInClass || alreadyAdded)
-        ? (alreadyAdded ? `<button class="btn btn-sm btn-danger" onclick="removeExtraWordset('${uid}')">제거</button>` : '')
-        : `<button class="btn btn-sm btn-primary" onclick="addExtraWordset('${uid}')">추가</button>`;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:.5px solid var(--border);">
-        <div>
-          <div style="font-size:14px;font-weight:600;">${ws.name}</div>
-          <div style="font-size:11px;color:var(--text2);">${ws.subject} · ${ws.words.length}개 단어</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">${status} ${btn}</div>
-      </div>`;
+    const sharedSets=availableShared;
+    body.innerHTML=groupWordsetsBySeries(sharedSets).map(group=>{
+      if(!group.key){
+        const ws=group.sets[0], uid=ws.uid;
+        const alreadyInClass=myClassUids.includes(uid), alreadyAdded=myExtras.includes(uid);
+        const status=alreadyInClass?'<span class="badge badge-teal">반 기본</span>':alreadyAdded?'<span class="badge badge-purple">추가됨</span>':'';
+        const btn=alreadyAdded?`<button class="btn btn-sm btn-danger" onclick="removeExtraWordset('${uid}')">제거</button>`:alreadyInClass?'':`<button class="btn btn-sm btn-primary" onclick="addExtraWordset('${uid}')">추가</button>`;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:.5px solid var(--border);"><div><div style="font-size:14px;font-weight:600;">${escHTML(ws.name)}</div><div style="font-size:11px;color:var(--text2);">${escHTML(ws.subject)} · ${ws.words.length}개 단어</div></div><div style="display:flex;align-items:center;gap:8px;">${status} ${btn}</div></div>`;
+      }
+      const extras=group.sets.filter(s=>myExtras.includes(s.uid));
+      const classCount=group.sets.filter(s=>myClassUids.includes(s.uid)).length;
+      const action=extras.length?`<button class="btn btn-sm btn-danger" onclick="removeExtraWordsetSeries('${encodeURIComponent(group.key)}')">추가분 제거</button>`:classCount===group.sets.length?'<span class="badge badge-teal">반 기본</span>':`<button class="btn btn-sm btn-primary" onclick="addExtraWordsetSeries('${encodeURIComponent(group.key)}')">시리즈 추가</button>`;
+      const days=group.sets.map(ws=>{
+        const inClass=myClassUids.includes(ws.uid), added=myExtras.includes(ws.uid);
+        const dayAction=added?`<button class="btn btn-sm btn-danger" onclick="removeExtraWordset('${ws.uid}')">제거</button>`:inClass?'<span class="badge badge-teal">반 기본</span>':`<button class="btn btn-sm btn-primary" onclick="addExtraWordset('${ws.uid}')">추가</button>`;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-top:.5px solid var(--border);"><span>${escHTML(ws.group||ws.name)} · ${ws.words.length}개</span>${dayAction}</div>`;
+      }).join('');
+      return `<div class="card" style="padding:10px 12px;margin:6px 0;"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><div style="font-size:14px;font-weight:600;">${escHTML(group.name)}</div><div style="font-size:11px;color:var(--text2);">${group.sets.length} DAY · ${group.sets.reduce((n,s)=>n+s.words.length,0)}개 단어</div></div>${action}</div><details style="margin-top:7px;"><summary style="cursor:pointer;font-size:11px;color:var(--text2);">DAY별 선택</summary>${days}</details></div>`;
     }).join('');
   }
   document.getElementById('modal-add-wordset').classList.add('open');
@@ -5418,6 +6011,27 @@ function addExtraWordset(uid){
     populateSelects();
     openAddWordsetModal(); // refresh
   }
+}
+
+function addExtraWordsetSeries(encodedKey){
+  if(!currentUser) return;
+  const key=_decodeSeriesKey(encodedKey);
+  const stu=students.find(s=>s.userId===currentUser.userId);
+  const classUids=stu?.classId?(classWordsets[stu.classId]||[]):[];
+  if(!studentExtraWordsets[currentUser.userId]) studentExtraWordsets[currentUser.userId]=[];
+  const fresh=sharedWordsetUids.map(uid=>wordsets.find(s=>s.uid===uid)).filter(s=>s&&getWordsetSeriesKey(s)===key&&!classUids.includes(s.uid)&&!studentExtraWordsets[currentUser.userId].includes(s.uid));
+  studentExtraWordsets[currentUser.userId].push(...fresh.map(s=>s.uid));
+  saveStudentExtraWordsets(); populateSelects(); openAddWordsetModal();
+  showToast(`${fresh.length}개 DAY를 개인 단어장에 추가했습니다.`);
+}
+
+function removeExtraWordsetSeries(encodedKey){
+  if(!currentUser) return;
+  const key=_decodeSeriesKey(encodedKey);
+  const removeUids=new Set(wordsets.filter(s=>getWordsetSeriesKey(s)===key).map(s=>s.uid));
+  studentExtraWordsets[currentUser.userId]=(studentExtraWordsets[currentUser.userId]||[]).filter(uid=>!removeUids.has(uid));
+  saveStudentExtraWordsets(); populateSelects(); openAddWordsetModal();
+  showToast('시리즈 추가를 해제했습니다.');
 }
 
 function removeExtraWordset(uid){
@@ -5624,8 +6238,9 @@ function bulkMapRecoveryByClass(setUid){
 // populateFCSel 이후 단어장 추가 버튼 표시/숨김
 function updateFCAddBtn(){
   const btn = document.getElementById('fc-add-wordset-btn');
-  if(!btn) return;
-  btn.style.display = (currentUser?.role === 'student') ? 'block' : 'none';
+  if(btn) btn.style.display = (currentUser?.role === 'student') ? 'block' : 'none';
+  const personalBtn=document.getElementById('personal-wordsets-btn');
+  if(personalBtn) personalBtn.style.display=currentUser?.accountType==='personal'?'block':'none';
 }
 
 // ═══════════════════════════════════════════════
@@ -5822,6 +6437,7 @@ function toggleBulkMode(){
   if(btn) btn.textContent = _bulkMode ? '✕ 선택 종료' : '☑️ 일괄선택';
   const bar = document.getElementById('bulk-bar');
   if(bar) bar.classList.toggle('show', _bulkMode);
+  renderWsManageList();
   renderWordsets();
 }
 
@@ -5830,6 +6446,13 @@ function toggleBulkSelect(uid, checked){
   else _selectedUids.delete(uid);
   const cnt = document.getElementById('bulk-count');
   if(cnt) cnt.textContent = `${_selectedUids.size}개 선택`;
+}
+
+function bulkSelectVisibleWordsets(){
+  document.querySelectorAll('#wm-list .wm-item[data-uid]').forEach(item=>_selectedUids.add(item.dataset.uid));
+  document.querySelectorAll('#wm-list input[type="checkbox"]').forEach(input=>input.checked=true);
+  const cnt=document.getElementById('bulk-count');
+  if(cnt) cnt.textContent=`${_selectedUids.size}개 선택`;
 }
 
 function clearBulkSelection(){
@@ -5881,6 +6504,20 @@ function bulkAssignToClass(){
   sets.forEach(s=>{ if(!classWordsets[cls.id].includes(s.uid)) classWordsets[cls.id].push(s.uid); });
   saveClassWordsets(); clearBulkSelection();
   showToast(`${sets.length}개 → ${cls.name} 배정 완료`);
+}
+
+function bulkRemoveFromClass(){
+  const sets=_getBulkSets(); if(!sets) return;
+  if(!classes.length){showToast('등록된 반이 없습니다.');return;}
+  const opts=classes.map((c,i)=>`${i+1}: ${c.name}`).join('\n');
+  const idx=parseInt(prompt(`해제할 반 번호를 입력하세요:\n${opts}`))-1;
+  if(isNaN(idx)||idx<0||idx>=classes.length) return;
+  const cls=classes[idx];
+  pushUndoState('일괄 반 배정 해제');
+  const selected=new Set(sets.map(s=>s.uid));
+  classWordsets[cls.id]=(classWordsets[cls.id]||[]).filter(uid=>!selected.has(uid));
+  saveClassWordsets(); clearBulkSelection();
+  showToast(`${sets.length}개 → ${cls.name} 배정 해제 완료`);
 }
 
 function bulkAddToShared(){
@@ -6401,21 +7038,21 @@ const SFX = (function(){
   };
 })();
 
-// ── 계정별 효과음 저장/로드 ──
+// ── 공통 효과음 저장/로드 ──
 function _saveUserSFX(){
-  const uid = currentUser?.userId || '_guest';
-  userSFXSettings[uid] = { volume: SFX.volume };
+  userSFXSettings['_global'] = { volume: SFX.volume };
   try{ localStorage.setItem('vm_sfx', JSON.stringify(userSFXSettings)); }catch(e){}
 }
 function _loadUserSFX(){
   const uid = currentUser?.userId || '_guest';
-  const saved = userSFXSettings[uid];
+  const saved = userSFXSettings['_global'] || userSFXSettings[uid] || userSFXSettings['_guest'];
   if(saved){
     const savedVolume = typeof saved.volume === 'number' ? saved.volume : 0.4;
     SFX.volume = saved.muted ? 0 : savedVolume;
   } else {
     SFX.volume = 0.4;
   }
+  if(!userSFXSettings['_global']) _saveUserSFX();
   _syncSFXUI();
 }
 
@@ -6781,11 +7418,14 @@ function renderDashboard(){
   if(!currentUser) return;
   const uid = currentUser.userId;
   const today = _todayStr();
+  const personalMode=currentUser.accountType==='personal';
   const myClassId = students.find(st=>st.userId===uid)?.classId;
 
   // ── 숙제 ──
-  const hwList = myClassId ? (homework[myClassId]||[]) : [];
+  const hwList = !personalMode && myClassId ? (homework[myClassId]||[]) : [];
   const pendingHw = hwList.filter(h=>(h.studentStatus||{})[uid]!=='done');
+  const hwCard=document.getElementById('dash-hw-card');
+  if(hwCard) hwCard.style.display=personalMode?'none':'';
   const hwEl = document.getElementById('dash-hw-list');
   if(hwEl){
     if(!pendingHw.length){ hwEl.innerHTML='<div style="font-size:12px;color:var(--text3);">\uc219\uc81c\uac00 \uc5c6\uc2b5\ub2c8\ub2e4. \ud83c\udf89</div>'; }
@@ -6851,9 +7491,9 @@ function renderDashboard(){
       const dayEvs   = evMap[ds]||[];
       const dotHtml  = dayEvs.slice(0,2).map(e=>`<div style="width:5px;height:5px;border-radius:50%;background:${typeColor[e.type]||'var(--text3)'};margin:0 auto 1px;"></div>`).join('');
       const attVal   = classAtt[ds]?.[uid];
-      const attHtml  = attVal ? `<div style="font-size:8px;font-weight:700;line-height:1.2;color:${attVal==='O'?'#2e9e5a':attVal==='X'?'#E24B4A':'#E07B2C'}">${attVal}</div>` : '';
+      const attHtml  = !personalMode && attVal ? `<div style="font-size:8px;font-weight:700;line-height:1.2;color:${attVal==='O'?'#2e9e5a':attVal==='X'?'#E24B4A':'#E07B2C'}">${attVal}</div>` : '';
       const hwDue    = hwDueMap[ds]||[];
-      const hwHtml   = hwDue.length ? (hwDue.every(h=>(h.studentStatus||{})[uid]==='done') ? '<div style="font-size:8px;color:#2e9e5a;line-height:1.2;">✓</div>' : '<div style="font-size:8px;color:#E07B2C;line-height:1.2;">📝</div>') : '';
+      const hwHtml   = !personalMode && hwDue.length ? (hwDue.every(h=>(h.studentStatus||{})[uid]==='done') ? '<div style="font-size:8px;color:#2e9e5a;line-height:1.2;">✓</div>' : '<div style="font-size:8px;color:#E07B2C;line-height:1.2;">📝</div>') : '';
       const holHtml  = holiday ? `<div style="font-size:7px;color:#dc2626;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${holiday}</div>` : '';
       html+=`<div class="cal-day${isToday?' today':''}${_dashSelDate===ds?' selected':''}" onclick="dashDayClick('${ds}')"><div class="cal-dn${isRed?' holiday-day':''}">${d}</div>${holHtml}${dotHtml}${attHtml}${hwHtml}</div>`;
     }
@@ -6870,25 +7510,27 @@ function renderDashboard(){
       if(_dashSelDate){
         const selEvs    = evMap[_dashSelDate]||[];
         const selHoliday = dashHolidays[_dashSelDate];
-        const selHwDue  = hwDueMap[_dashSelDate]||[];
-        const selAtt    = classAtt[_dashSelDate]?.[uid];
+        const selHwDue  = personalMode?[]:(hwDueMap[_dashSelDate]||[]);
+        const selAtt    = personalMode?null:classAtt[_dashSelDate]?.[uid];
         const [sy,sm,sd2] = _dashSelDate.split('-');
         const selDow = ['일','월','화','수','목','금','토'][new Date(`${_dashSelDate}T00:00:00`).getDay()];
         let dHtml = `<div style="font-weight:700;font-size:13px;margin-bottom:8px;color:var(--text);">${parseInt(sy)}년 ${parseInt(sm)}월 ${parseInt(sd2)}일 (${selDow})`
           +(selHoliday?` <span style="font-size:12px;color:#E07B2C;">${selHoliday}</span>`:'')+'</div>';
-        // Compact att + hw on same line
-        const attColor = selAtt==='O'?'#2e9e5a':selAtt==='X'?'#E24B4A':selAtt?'#E07B2C':'var(--text3)';
-        let statusLine = `출석 <strong style="color:${attColor};">${selAtt||'미기록'}</strong>`;
-        selHwDue.forEach(hw=>{
-          const done = (hw.studentStatus||{})[uid]==='done';
-          statusLine += ` &nbsp; 숙제 [${hw.title}] <strong style="color:${done?'#2e9e5a':'#E07B2C'};">${done?'O':'X'}</strong>`;
-        });
-        dHtml += `<div style="font-size:12px;margin-bottom:6px;">${statusLine}</div>`;
+        if(!personalMode){
+          // Compact attendance + homework status on one line
+          const attColor = selAtt==='O'?'#2e9e5a':selAtt==='X'?'#E24B4A':selAtt?'#E07B2C':'var(--text3)';
+          let statusLine = `출석 <strong style="color:${attColor};">${selAtt||'미기록'}</strong>`;
+          selHwDue.forEach(hw=>{
+            const done = (hw.studentStatus||{})[uid]==='done';
+            statusLine += ` &nbsp; 숙제 [${hw.title}] <strong style="color:${done?'#2e9e5a':'#E07B2C'};">${done?'O':'X'}</strong>`;
+          });
+          dHtml += `<div style="font-size:12px;margin-bottom:6px;">${statusLine}</div>`;
+        }
         if(selEvs.length) dHtml += selEvs.map(e=>{
           const typeIcon2={exam:'📝',task:'📌',notice:'📢'};
           return `<div style="font-size:12px;padding:2px 0;">• ${typeIcon2[e.type]||''} ${e.title}${e.isAllClass?' <span style="font-size:10px;color:#7F77DD;">[전체반]</span>':''}${e.desc?` — <span style="color:var(--text2);">${e.desc}</span>`:''}</div>`;
         }).join('');
-        if(!selEvs.length && !selHwDue.length && !selAtt) dHtml += '<div style="font-size:12px;color:var(--text3);">일정 없음</div>';
+        if(!selEvs.length && (personalMode||(!selHwDue.length && !selAtt))) dHtml += '<div style="font-size:12px;color:var(--text3);">일정 없음</div>';
         detailEl.innerHTML = dHtml;
         detailEl.style.display = '';
       } else {
